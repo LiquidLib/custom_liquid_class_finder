@@ -2,9 +2,17 @@
 
 An intelligent Opentrons protocol that automatically optimizes liquid handling parameters for viscous liquids using gradient descent optimization. This protocol minimizes bubble formation and ensures accurate liquid dispensing for challenging liquids like glycerol.
 
+**NEW: Liquid Class Configuration System** - Now includes a comprehensive system for managing liquid handling parameters with CSV import/export and seamless protocol integration.
+
 ## Overview
 
 This protocol solves a critical problem in automated liquid handling: **optimizing liquid class parameters for viscous liquids**. Traditional manual calibration is time-consuming and error-prone. This protocol uses machine learning principles (gradient descent) to automatically find the best parameters through systematic testing.
+
+The project now includes a **Liquid Class Configuration System** that provides:
+- 📊 **Reference Data Management**: Store and retrieve optimized parameters
+- 🔄 **CSV Import/Export**: Easy data exchange in standard format
+- 🧪 **Multi-Liquid Support**: Handle different liquids and pipettes
+- 🔧 **Protocol Integration**: Seamless integration with calibration protocols
 
 ## Key Features
 
@@ -14,14 +22,32 @@ This protocol solves a critical problem in automated liquid handling: **optimizi
 - 🔧 **Parameter Constraints**: Ensures all parameters stay within safe operational bounds
 - 📈 **Real-time Learning**: Adjusts parameters based on previous results
 - 🎯 **Optimal Results**: Identifies the best-performing parameter set
+- 📋 **Liquid Class Registry**: Centralized parameter management system
+- 🔄 **CSV Data Exchange**: Import/export parameters in standard format
+- 🎛️ **Configurable Liquids**: Support for multiple liquid types and pipettes
+
+## Your Reference Data
+
+The system comes pre-configured with your optimized glycerol parameters:
+
+```
+Pipette,Liquid,Aspiration Rate (µL/s),Aspiration Delay (s),Aspiration Withdrawal Rate (mm/s),Dispense Rate (µL/s),Dispense Delay (s),Blowout Rate (µL/s),Touch tip
+P1000,Glycerol 99%,41.175,20,4,19.215,20,5.0,No
+```
+
+**Key Parameters for Glycerol 99% with P1000:**
+- **Aspiration Rate**: 41.175 µL/s (slow for viscous liquid)
+- **Aspiration Delay**: 20 s (long delay for complete aspiration)
+- **Dispense Rate**: 19.215 µL/s (very slow for controlled dispensing)
+- **Touch Tip**: No (not needed for glycerol)
 
 ## How It Works
 
 ### 1. **Setup & Configuration**
 The protocol loads:
-- **Labware**: 12-well reservoir (glycerol source), 96-well test plate, tip racks
-- **Pipettes**: 8-channel 1000µL (dispensing), 8-channel 50µL (evaluation)
-- **Liquid**: 100% glycerol as the test liquid
+- **Labware**: 12-well reservoir (liquid source), 96-well test plate, tip racks
+- **Pipettes**: Single-channel 1000µL (dispensing), single-channel 50µL (evaluation)
+- **Liquid**: Configurable liquid type (default: glycerol)
 
 ### 2. **Parameters Being Optimized**
 The protocol optimizes these critical liquid handling parameters:
@@ -41,7 +67,7 @@ The protocol optimizes these critical liquid handling parameters:
 The optimization follows this iterative process:
 
 ```
-For each well (column):
+For each well:
 1. Use current parameters to dispense liquid
 2. Evaluate result (liquid height + bubble formation)
 3. Adjust parameters based on performance
@@ -68,13 +94,67 @@ For each well (column):
 
 ### 5. **Workflow Process**
 
-For each column in the 96-well plate:
+For each well in the 96-well plate:
 
-1. **Parameter Selection**: Use reference parameters for first well, then gradient descent-adjusted parameters
+1. **Parameter Selection**: Use liquid class parameters as starting point, then gradient descent-adjusted parameters
 2. **Dispense**: Execute liquid handling with current parameters
 3. **Evaluate**: Check liquid height and bubble formation
 4. **Record**: Store results with parameters used
 5. **Optimize**: Adjust parameters for next iteration based on performance
+
+## Liquid Class System
+
+### **Core Components**
+
+The liquid class system provides:
+
+- **`liquid_classes.py`**: Core system with parameter registry
+- **`liquid_class_manager.py`**: Command-line utility for management
+- **`liquid_class_demo.py`**: Demonstration script
+- **`test_liquid_classes.py`**: Comprehensive test suite
+
+### **Supported Pipettes & Liquids**
+
+| Pipettes | Liquids |
+|----------|---------|
+| P1000 (1000 µL) | Glycerol 99% |
+| P300 (300 µL) | Water |
+| P50 (50 µL) | DMSO |
+| | Ethanol |
+
+### **Quick Start with Liquid Classes**
+
+```python
+from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+
+# Get your reference data
+params = get_liquid_class_params(PipetteType.P1000, LiquidType.GLYCEROL_99)
+print(f"Aspiration Rate: {params.aspiration_rate} µL/s")  # 41.175
+```
+
+### **Command Line Management**
+
+```bash
+# List all liquid classes
+python liquid_class_manager.py list
+
+# Show your reference data
+python liquid_class_manager.py show P1000 "Glycerol 99%"
+
+# Export to CSV
+python liquid_class_manager.py export my_liquid_classes.csv
+
+# Import from CSV
+python liquid_class_manager.py import my_liquid_classes.csv
+```
+
+### **Protocol Integration**
+
+The updated protocol automatically:
+- Uses liquid class parameters as starting point
+- Supports multiple liquid types via parameters
+- Gracefully handles missing liquid classes
+- Defines liquids dynamically based on type
 
 ## Requirements
 
@@ -86,24 +166,51 @@ For each column in the 96-well plate:
   - `opentrons_flex_96_filtertiprack_1000ul` (1000µL tips)
   - `opentrons_flex_96_filtertiprack_50ul` (50µL tips)
 - **Pipettes**:
-  - `flex_8channel_1000` (8-channel 1000µL)
-  - `flex_8channel_50` (8-channel 50µL)
+  - `flex_1channel_1000` (single-channel 1000µL)
+  - `flex_1channel_50` (single-channel 50µL)
 
 ## Configuration Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `sample_count` | Integer | 96 | Number of wells to test (1-96) |
-| `pipette_mount` | String | "right" | Mount position for 8-channel pipette ("left" or "right") |
+| `pipette_mount` | String | "right" | Mount position for pipette ("left" or "right") |
+| `trash_position` | String | "A3" | Deck position for trash container |
+| `liquid_type` | String | "GLYCEROL_99" | Type of liquid to calibrate for |
+| `pipette_type` | String | "P1000" | Type of pipette to calibrate |
 
 ## Usage
 
+### **Basic Protocol Usage**
+
 1. **Load the Protocol**: Upload `protocol.py` to your Opentrons App
-2. **Configure Parameters**: Set sample count and pipette mount as needed
+2. **Configure Parameters**: Set liquid type, pipette type, and other parameters
 3. **Prepare Labware**: Ensure all required labware is loaded and positioned
-4. **Add Glycerol**: Load 15mL of 100% glycerol in reservoir position A1
+4. **Add Liquid**: Load 15mL of your chosen liquid in reservoir position A1
 5. **Run Protocol**: Execute the protocol and monitor progress
 6. **Review Results**: Check the protocol comments for optimal parameters
+
+### **Liquid Class Management**
+
+1. **View Available Classes**:
+   ```bash
+   python liquid_class_manager.py list
+   ```
+
+2. **Export Your Data**:
+   ```bash
+   python liquid_class_manager.py export my_parameters.csv
+   ```
+
+3. **Add New Liquid Class**:
+   ```bash
+   python liquid_class_manager.py add
+   ```
+
+4. **Import from CSV**:
+   ```bash
+   python liquid_class_manager.py import new_parameters.csv
+   ```
 
 ## Output
 
@@ -122,7 +229,7 @@ Well C1: Height OK: True, Bubblicity: 0.00
 ...
 Optimal parameters found in A1
 Optimal bubblicity score: 0.00
-Optimal parameters: {'aspiration_rate': 150.0, 'aspiration_delay': 1.0, ...}
+Optimal parameters: {'aspiration_rate': 41.175, 'aspiration_delay': 20.0, ...}
 ```
 
 ## Why This Matters
@@ -132,6 +239,7 @@ Optimal parameters: {'aspiration_rate': 150.0, 'aspiration_delay': 1.0, ...}
 - **Bubble formation** can ruin experiments and waste expensive reagents
 - **Manual optimization** of liquid class parameters is time-consuming and error-prone
 - **Inconsistent results** from manual calibration
+- **Parameter management** across different liquids and pipettes
 
 ### **Benefits**
 - **Automated optimization** ensures consistent, reproducible results
@@ -139,6 +247,7 @@ Optimal parameters: {'aspiration_rate': 150.0, 'aspiration_delay': 1.0, ...}
 - **Time savings** compared to manual trial-and-error
 - **Better performance** through data-driven parameter selection
 - **Scalable** to different liquids and conditions
+- **Centralized parameter management** for easy sharing and version control
 
 ## Technical Details
 
@@ -154,6 +263,12 @@ The protocol uses a simplified gradient descent approach:
 - **Height-based weighting**: Higher bubbles penalized more heavily
 - **Pressure-based detection**: Uses pipette pressure sensors for liquid detection
 - **Error handling**: Graceful handling of detection failures
+
+### **Liquid Class System Architecture**
+- **Registry Pattern**: Centralized storage with type safety
+- **CSV Format**: Standard data exchange format
+- **Enum-based Types**: Prevents errors with invalid pipette/liquid combinations
+- **Protocol Integration**: Seamless integration with Opentrons protocols
 
 ## Development
 
@@ -186,6 +301,12 @@ The protocol uses a simplified gradient descent approach:
 3. **Verify installation**:
    ```bash
    make check
+   ```
+
+4. **Test the liquid class system**:
+   ```bash
+   python test_liquid_classes.py
+   python liquid_class_demo.py
    ```
 
 ### **Development Workflow**
@@ -239,6 +360,7 @@ The test suite uses pytest and includes:
 - **Unit tests** for protocol components
 - **Mock testing** for Opentrons API interactions
 - **Coverage reporting** to ensure comprehensive testing
+- **Liquid class system tests** for parameter management
 
 Run tests:
 ```bash
@@ -250,6 +372,7 @@ pytest --cov=. --cov-report=html
 
 # Run specific test file
 pytest tests/test_protocol.py
+pytest test_liquid_classes.py
 
 # Run with verbose output
 pytest -v
@@ -268,7 +391,12 @@ The project follows these style guidelines:
 
 ```
 liquid-class-finder/
-├── protocol.py              # Main protocol file
+├── protocol.py              # Main protocol file (updated with liquid class integration)
+├── liquid_classes.py        # Core liquid class system
+├── liquid_class_manager.py  # Command-line management utility
+├── liquid_class_demo.py     # Demonstration script
+├── test_liquid_classes.py   # Liquid class system tests
+├── LIQUID_CLASS_README.md   # Detailed liquid class documentation
 ├── requirements.txt         # Production dependencies
 ├── pyproject.toml          # Project configuration
 ├── Makefile                # Development commands
@@ -313,6 +441,12 @@ For debugging Opentrons protocols:
 3. **Test with mock data** in the test suite
 4. **Use the Opentrons Protocol Designer** for visual debugging
 
+For debugging liquid class system:
+
+1. **Run the demo script**: `python liquid_class_demo.py`
+2. **Use the manager utility**: `python liquid_class_manager.py list`
+3. **Run tests**: `python test_liquid_classes.py`
+
 #### **Dependencies**
 
 - **Production**: `opentrons>=6.3.0`, `opentrons-protocol-api>=2.22.0`
@@ -338,6 +472,8 @@ This protocol is designed to be extensible. Consider contributing:
 - Different optimization algorithms
 - Support for other liquid types
 - Enhanced parameter sets
+- New liquid class features
+- Improved CSV import/export formats
 
 ## License
 

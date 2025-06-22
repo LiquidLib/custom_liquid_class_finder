@@ -1,5 +1,57 @@
+import sys
+import os
+
+try:
+    protocol_dir = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # __file__ is not defined (e.g., in Opentrons simulation)
+    protocol_dir = os.getcwd()
+
+if protocol_dir not in sys.path:
+    sys.path.insert(0, protocol_dir)
+
 from opentrons import protocol_api, types
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+
+# Try to import liquid classes, with fallback if not available
+try:
+    from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+
+    LIQUID_CLASSES_AVAILABLE = True
+except ImportError:
+    # Fallback: define basic enums and functions if module not available
+    from enum import Enum
+
+    class FallbackPipetteType(Enum):
+        P1000 = "P1000"
+        P300 = "P300"
+        P50 = "P50"
+
+    class FallbackLiquidType(Enum):
+        GLYCEROL_99 = "Glycerol 99%"
+        WATER = "Water"
+        DMSO = "DMSO"
+        ETHANOL = "Ethanol"
+
+    def get_liquid_class_params_fallback(pipette: Any, liquid: Any) -> Optional[Dict[str, float]]:
+        """Fallback function that returns default parameters"""
+        if pipette == FallbackPipetteType.P1000 and liquid == FallbackLiquidType.GLYCEROL_99:
+            return {
+                "aspiration_rate": 41.175,
+                "aspiration_delay": 20.0,
+                "aspiration_withdrawal_rate": 4.0,
+                "dispense_rate": 19.215,
+                "dispense_delay": 20.0,
+                "blowout_rate": 5.0,
+                "touch_tip": False,
+            }
+        return None
+
+    # Use fallback types when main module is not available
+    PipetteType = FallbackPipetteType  # type: ignore
+    LiquidType = FallbackLiquidType  # type: ignore
+    get_liquid_class_params = get_liquid_class_params_fallback  # type: ignore
+    LIQUID_CLASSES_AVAILABLE = False
 
 metadata = {
     "protocolName": "Liquid Class Calibration with Gradient Descent",
@@ -52,13 +104,38 @@ def add_parameters(parameters):
         default="A3",
         description="Deck position for trash container",
     )
+    parameters.add_str(
+        display_name="Liquid type",
+        variable_name="liquid_type",
+        choices=[
+            {"display_name": "Glycerol 99%", "value": "GLYCEROL_99"},
+            {"display_name": "Water", "value": "WATER"},
+            {"display_name": "DMSO", "value": "DMSO"},
+            {"display_name": "Ethanol", "value": "ETHANOL"},
+        ],
+        default="GLYCEROL_99",
+        description="Type of liquid to calibrate for",
+    )
+    parameters.add_str(
+        display_name="Pipette type",
+        variable_name="pipette_type",
+        choices=[
+            {"display_name": "P1000", "value": "P1000"},
+            {"display_name": "P300", "value": "P300"},
+            {"display_name": "P50", "value": "P50"},
+        ],
+        default="P1000",
+        description="Type of pipette to calibrate",
+    )
 
 
 def run(protocol: protocol_api.ProtocolContext):
     # Access runtime parameters
-    SAMPLE_COUNT = protocol.params.sample_count
-    PIPETTE_MOUNT = protocol.params.pipette_mount
-    TRASH_POSITION = protocol.params.trash_position
+    SAMPLE_COUNT = protocol.params.sample_count  # type: ignore
+    PIPETTE_MOUNT = protocol.params.pipette_mount  # type: ignore
+    TRASH_POSITION = protocol.params.trash_position  # type: ignore
+    LIQUID_TYPE = LiquidType[protocol.params.liquid_type]  # type: ignore
+    PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore
 
     # Load labware
     reservoir = protocol.load_labware("nest_12_reservoir_15ml", "D1")
@@ -82,24 +159,56 @@ def run(protocol: protocol_api.ProtocolContext):
     pipette_1000 = protocol.load_instrument("flex_1channel_1000", "left", tip_racks=[tiprack_1000])
     pipette_50 = protocol.load_instrument("flex_1channel_50", PIPETTE_MOUNT, tip_racks=[tiprack_50])
 
-    # Define liquid
-    glycerol = protocol.define_liquid(
-        name="100% Glycerol",
-        description="Calibration liquid for parameter optimization",
-        display_color="#FFD700",
-    )
-    reservoir["A1"].load_liquid(liquid=glycerol, volume=15000)
+    # Get liquid class parameters from registry
+    liquid_class_params = get_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)
 
-    # Reference liquid class parameters (starting point)
-    reference_params = {
-        "aspiration_rate": 150.0,  # µL/s
-        "aspiration_delay": 1.0,  # s
-        "aspiration_withdrawal_rate": 5.0,  # mm/s
-        "dispense_rate": 150.0,  # µL/s
-        "dispense_delay": 1.0,  # s
-        "blowout_rate": 100.0,  # µL/s
-        "touch_tip": True,
-    }
+    reference_params: Dict[str, Any]
+    if liquid_class_params is None:
+        protocol.comment(
+            f"Warning: No liquid class parameters found for {PIPETTE_TYPE.value} "
+            f"and {LIQUID_TYPE.value}"
+        )
+        protocol.comment("Using default parameters")
+        # Fallback to default parameters
+        reference_params = {
+            "aspiration_rate": 150.0,  # µL/s
+            "aspiration_delay": 1.0,  # s
+            "aspiration_withdrawal_rate": 5.0,  # mm/s
+            "dispense_rate": 150.0,  # µL/s
+            "dispense_delay": 1.0,  # s
+            "blowout_rate": 100.0,  # µL/s
+            "touch_tip": True,
+        }
+    else:
+        protocol.comment(
+            f"Using liquid class parameters for {PIPETTE_TYPE.value} and {LIQUID_TYPE.value}"
+        )
+        # Always convert to dict for consistency
+        if LIQUID_CLASSES_AVAILABLE and hasattr(liquid_class_params, "to_dict"):
+            reference_params = liquid_class_params.to_dict()
+        else:
+            reference_params = dict(liquid_class_params)  # type: ignore
+
+    # Define liquid based on liquid type
+    liquid_name = LIQUID_TYPE.value
+    liquid_description = f"Calibration liquid for {liquid_name}"
+    liquid_color = "#FFD700"  # Default gold color
+
+    if LIQUID_TYPE == LiquidType.GLYCEROL_99:
+        liquid_color = "#FFD700"  # Gold for glycerol
+    elif LIQUID_TYPE == LiquidType.WATER:
+        liquid_color = "#87CEEB"  # Sky blue for water
+    elif LIQUID_TYPE == LiquidType.DMSO:
+        liquid_color = "#98FB98"  # Pale green for DMSO
+    elif LIQUID_TYPE == LiquidType.ETHANOL:
+        liquid_color = "#F0E68C"  # Khaki for ethanol
+
+    liquid = protocol.define_liquid(
+        name=liquid_name,
+        description=liquid_description,
+        display_color=liquid_color,
+    )
+    reservoir["A1"].load_liquid(liquid=liquid, volume=15000)
 
     # Parameter bounds for constraint checking
     param_bounds = {
