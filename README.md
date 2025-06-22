@@ -1,5 +1,10 @@
 # Liquid Class Calibration with Gradient Descent
 
+[![CI/CD](https://github.com/LiquidLib/custom_liquid_class_finder/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/LiquidLib/custom_liquid_class_finder/actions/workflows/ci-cd.yml)
+[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Flake8](https://img.shields.io/badge/lint-flake8-blueviolet.svg)](https://flake8.pycqa.org/en/latest/)
+[![Mypy](https://img.shields.io/badge/type%20checker-mypy-blue.svg)](http://mypy-lang.org/)
+
 An intelligent Opentrons protocol that automatically optimizes liquid handling parameters for viscous liquids using gradient descent optimization. This protocol minimizes bubble formation and ensures accurate liquid dispensing for challenging liquids like glycerol.
 
 **NEW: Liquid Class Configuration System** - Now includes a comprehensive system for managing liquid handling parameters with CSV import/export and seamless protocol integration.
