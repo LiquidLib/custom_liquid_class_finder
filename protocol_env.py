@@ -21,26 +21,29 @@ metadata = {
 
 requirements = {"robotType": "Flex", "apiLevel": "2.22"}
 
+
 def run(protocol: protocol_api.ProtocolContext):
     # Read parameters from environment variables with defaults
     liquid_type_str = os.environ.get("LIQUID_TYPE", "GLYCEROL_50")
     sample_count = int(os.environ.get("SAMPLE_COUNT", "8"))
     pipette_mount = os.environ.get("PIPETTE_MOUNT", "right")
-    
+
     # Convert string to LiquidType enum
     try:
         LIQUID_TYPE = LiquidType[liquid_type_str]
     except KeyError:
         protocol.comment(f"Invalid liquid type: {liquid_type_str}, using GLYCEROL_50")
-        protocol.comment("Available liquid types: GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99, PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100, ENGINE_OIL_100, WATER, DMSO, ETHANOL")
+        protocol.comment(
+            "Available liquid types: GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99, PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100, ENGINE_OIL_100, WATER, DMSO, ETHANOL"
+        )
         LIQUID_TYPE = LiquidType.GLYCEROL_50
-    
+
     PIPETTE_TYPE = PipetteType.P1000
-    
+
     protocol.comment(f"Using liquid type: {LIQUID_TYPE.value}")
     protocol.comment(f"Sample count: {sample_count}")
     protocol.comment(f"Pipette mount: {pipette_mount}")
-    
+
     # Load labware
     reservoir = protocol.load_labware("nest_12_reservoir_15ml", "D1")
     test_plate = protocol.load_labware("nest_96_wellplate_200ul_flat", "D2")
@@ -96,7 +99,9 @@ def run(protocol: protocol_api.ProtocolContext):
     reservoir["A1"].load_liquid(liquid=liquid, volume=15000)
 
     # Test wells (first N wells based on sample_count)
-    test_wells = [test_plate[well] for well in ["A1", "B1", "C1", "D1", "A2", "B2", "C2", "D2"]][:sample_count]
+    test_wells = [test_plate[well] for well in ["A1", "B1", "C1", "D1", "A2", "B2", "C2", "D2"]][
+        :sample_count
+    ]
 
     protocol.comment(f"Starting {LIQUID_TYPE.value} calibration with {sample_count} wells")
 
@@ -133,22 +138,22 @@ def run(protocol: protocol_api.ProtocolContext):
         # Evaluate liquid height (simulated)
         pipette_50.pick_up_tip()
         protocol.comment(f"Evaluating liquid height in {well}")
-        
+
         # Simulate height evaluation
         pipette_50.move_to(well.bottom(2.0))
         protocol.delay(seconds=0.5)
         pipette_50.move_to(well.top(10))
-        
+
         # Simulate bubble detection
         protocol.comment(f"Evaluating bubblicity in {well}")
         pipette_50.move_to(well.bottom(2.5))
         protocol.delay(seconds=0.5)
         pipette_50.move_to(well.top(10))
-        
+
         pipette_50.drop_tip()
 
         protocol.comment(f"Well {well}: Height OK: True, Bubblicity: 0.50")
 
     protocol.comment(f"{LIQUID_TYPE.value} liquid class calibration completed successfully!")
     protocol.comment(f"Tested {sample_count} wells with optimized parameters")
-    protocol.comment("All wells showed good liquid height and minimal bubble formation") 
+    protocol.comment("All wells showed good liquid height and minimal bubble formation")

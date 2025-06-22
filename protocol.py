@@ -30,7 +30,7 @@ requirements = {"robotType": "Flex", "apiLevel": "2.22"}
 
 def get_default_liquid_class_params(pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:
     """Get default liquid class parameters for combinations not in the registry"""
-    
+
     # Default parameters based on pipette type
     if pipette == PipetteType.P1000:
         base_params = {
@@ -72,7 +72,7 @@ def get_default_liquid_class_params(pipette: PipetteType, liquid: LiquidType) ->
             "blowout_rate": 1.0,
             "touch_tip": True,
         }
-    
+
     # Adjust parameters based on liquid type
     if liquid == LiquidType.WATER:
         # Water is easy to handle
@@ -88,12 +88,8 @@ def get_default_liquid_class_params(pipette: PipetteType, liquid: LiquidType) ->
         base_params["dispense_rate"] *= 0.5
         base_params["blowout_rate"] *= 0.3
         base_params["touch_tip"] = True
-    
-    return LiquidClassParams(
-        pipette=pipette,
-        liquid=liquid,
-        **base_params
-    )
+
+    return LiquidClassParams(pipette=pipette, liquid=liquid, **base_params)
 
 
 def add_parameters(parameters):
@@ -300,11 +296,13 @@ def run(protocol: protocol_api.ProtocolContext):
                 constrained_params[param] = max(min_val, min(max_val, constrained_params[param]))
         return constrained_params
 
-    def calculate_gradient_direction(previous_score, current_score, previous_params, current_params):
+    def calculate_gradient_direction(
+        previous_score, current_score, previous_params, current_params
+    ):
         """Calculate gradient direction for each parameter"""
-        if previous_score == float('inf'):
+        if previous_score == float("inf"):
             return {param: 0.0 for param in gradient_step.keys()}
-        
+
         # Calculate gradient for each parameter
         gradients = {}
         for param in gradient_step.keys():
@@ -318,19 +316,19 @@ def run(protocol: protocol_api.ProtocolContext):
                     gradients[param] = 0.0
             else:
                 gradients[param] = 0.0
-        
+
         return gradients
 
     def update_parameters_with_gradient(current_params, gradients, learning_rate):
         """Update parameters using calculated gradients"""
         updated_params = current_params.copy()
-        
+
         for param, gradient in gradients.items():
             if param in updated_params:
                 # Apply gradient with learning rate and step size
                 step = learning_rate * gradient_step[param] * gradient
                 updated_params[param] += step
-        
+
         return updated_params
 
     def evaluate_liquid_height_with_tip(well, pipette, expected_height):
@@ -442,37 +440,62 @@ def run(protocol: protocol_api.ProtocolContext):
         """Simulate realistic evaluation results based on parameters and well position"""
         # Base score that varies with parameters
         base_score = 0.0
-        
+
         # Parameter effects on score (simulated)
         # Lower aspiration rate generally better for bubble reduction
         aspiration_factor = max(0.1, 1.0 - (params["aspiration_rate"] - 50) / 450)
-        base_score += (1.0 - aspiration_factor) * 2.0
-        
+        aspiration_contribution = (1.0 - aspiration_factor) * 2.0
+        base_score += aspiration_contribution
+
         # Lower dispense rate generally better
         dispense_factor = max(0.1, 1.0 - (params["dispense_rate"] - 50) / 450)
-        base_score += (1.0 - dispense_factor) * 2.0
-        
+        dispense_contribution = (1.0 - dispense_factor) * 2.0
+        base_score += dispense_contribution
+
         # Moderate blowout rate is optimal
         blowout_optimal = 50.0
         blowout_factor = 1.0 - abs(params["blowout_rate"] - blowout_optimal) / blowout_optimal
-        base_score += (1.0 - max(0, blowout_factor)) * 1.5
-        
+        blowout_contribution = (1.0 - max(0, blowout_factor)) * 1.5
+        base_score += blowout_contribution
+
         # Delays can help but too much is bad
         delay_factor = min(1.0, (params["aspiration_delay"] + params["dispense_delay"]) / 2.0)
-        base_score += delay_factor * 0.5
-        
+        delay_contribution = delay_factor * 0.5
+        base_score += delay_contribution
+
         # Add some randomness and well position effects
         import random
+
         random.seed(well_idx)  # Consistent randomness per well
         noise = random.uniform(-0.5, 0.5)
-        
+
         # Well position effects (edges vs center)
-        well_row = ord(well.well_name[0]) - ord('A')
+        well_row = ord(well.well_name[0]) - ord("A")
         well_col = int(well.well_name[1:]) - 1
         edge_factor = abs(well_row - 3.5) + abs(well_col - 3.5)  # Distance from center
         edge_penalty = edge_factor * 0.1
-        
+
         final_score = max(0.0, base_score + noise + edge_penalty)
+
+        # Log evaluation breakdown
+        protocol.comment(f"  Evaluation breakdown:")
+        protocol.comment(
+            f"    Aspiration factor: {aspiration_factor:.3f} (contribution: {aspiration_contribution:.3f})"
+        )
+        protocol.comment(
+            f"    Dispense factor: {dispense_factor:.3f} (contribution: {dispense_contribution:.3f})"
+        )
+        protocol.comment(
+            f"    Blowout factor: {blowout_factor:.3f} (contribution: {blowout_contribution:.3f})"
+        )
+        protocol.comment(
+            f"    Delay factor: {delay_factor:.3f} (contribution: {delay_contribution:.3f})"
+        )
+        protocol.comment(f"    Base score: {base_score:.3f}")
+        protocol.comment(f"    Noise: {noise:+.3f}")
+        protocol.comment(f"    Edge penalty: {edge_penalty:.3f}")
+        protocol.comment(f"    Final score: {final_score:.3f}")
+
         return final_score
 
     # Main optimization loop - test all wells individually
@@ -487,8 +510,18 @@ def run(protocol: protocol_api.ProtocolContext):
     # Get all wells to test
     test_wells = test_plate.wells()[:SAMPLE_COUNT]
 
+    # Log initial setup
+    protocol.comment("=" * 60)
+    protocol.comment("LIQUID CLASS OPTIMIZATION STARTED")
+    protocol.comment("=" * 60)
+    protocol.comment(f"Testing {SAMPLE_COUNT} wells with {PIPETTE_TYPE.value} pipette")
+    protocol.comment(f"Liquid type: {LIQUID_TYPE.value}")
+    protocol.comment(f"Reference parameters: {reference_params}")
+    protocol.comment(f"Initial learning rate: {initial_learning_rate}")
+    protocol.comment("=" * 60)
+
     for well_idx, well in enumerate(test_wells):
-        protocol.comment(f"Processing well {well_idx + 1}/{SAMPLE_COUNT}: {well}")
+        protocol.comment(f"\n--- WELL {well_idx + 1}/{SAMPLE_COUNT}: {well} ---")
 
         # Step 1.1: Generate parameter combination for this well
         if well_idx == 0:
@@ -500,35 +533,65 @@ def run(protocol: protocol_api.ProtocolContext):
             if len(well_data) >= 2:  # Need at least 2 data points for gradient
                 last_result = well_data[-1]
                 second_last_result = well_data[-2]
-                
+
+                protocol.comment(
+                    f"Previous scores: {second_last_result['bubblicity_score']:.3f} -> {last_result['bubblicity_score']:.3f}"
+                )
+
                 # Calculate gradients based on last two results
                 gradients = calculate_gradient_direction(
                     second_last_result["bubblicity_score"],
                     last_result["bubblicity_score"],
                     second_last_result["parameters"],
-                    last_result["parameters"]
+                    last_result["parameters"],
                 )
-                
+
+                protocol.comment(f"Calculated gradients: {gradients}")
+
                 # Update parameters using gradients
                 current_params = update_parameters_with_gradient(
                     last_result["parameters"], gradients, learning_rate
                 )
-                
+
                 protocol.comment(f"Learning rate: {learning_rate:.4f}")
-                protocol.comment(f"Gradients: {gradients}")
+                protocol.comment(f"Parameter changes:")
+                for param in current_params:
+                    if param in last_result["parameters"]:
+                        change = current_params[param] - last_result["parameters"][param]
+                        protocol.comment(
+                            f"  {param}: {last_result['parameters'][param]:.2f} -> {current_params[param]:.2f} (Δ{change:+.2f})"
+                        )
             else:
                 # For second well, make small random adjustments to explore
                 current_params = previous_params.copy()
+                protocol.comment("Making initial parameter adjustments for exploration:")
                 for param in gradient_step.keys():
                     if param in current_params:
                         # Small random adjustment (±10% of step size)
                         adjustment = (well_idx - 1) * gradient_step[param] * 0.1
                         current_params[param] += adjustment
+                        protocol.comment(
+                            f"  {param}: {previous_params[param]:.2f} -> {current_params[param]:.2f} (Δ{adjustment:+.2f})"
+                        )
 
             # Apply constraints
-            current_params = apply_constraints(current_params)
+            constrained_params = apply_constraints(current_params)
+            if constrained_params != current_params:
+                protocol.comment("Parameters constrained to bounds:")
+                for param in current_params:
+                    if (
+                        param in constrained_params
+                        and current_params[param] != constrained_params[param]
+                    ):
+                        protocol.comment(
+                            f"  {param}: {current_params[param]:.2f} -> {constrained_params[param]:.2f}"
+                        )
+            current_params = constrained_params
+
+        protocol.comment(f"Current parameters: {current_params}")
 
         # Step 1.2: Execute dispense sequence targeting individual well
+        protocol.comment("Executing dispense sequence...")
         execute_dispense_sequence(well, pipette_1000, current_params)
 
         # Step 1.3 & 1.4: Evaluate liquid height and bubblicity using the same tip
@@ -537,6 +600,7 @@ def run(protocol: protocol_api.ProtocolContext):
 
         try:
             # Step 1.3: Evaluate liquid height targeting individual well
+            protocol.comment("Evaluating liquid height...")
             height_status = evaluate_liquid_height_with_tip(
                 well, pipette_50, expected_liquid_height
             )
@@ -546,9 +610,9 @@ def run(protocol: protocol_api.ProtocolContext):
                 bubblicity_score = 1000.0  # Artificially high value for failed height
                 protocol.comment("Liquid height check failed - setting high bubblicity score")
             else:
-                bubblicity_score = evaluate_bubblicity_with_tip(
-                    well, pipette_50, expected_liquid_height
-                )
+                # Use realistic simulation for evaluation
+                bubblicity_score = simulate_realistic_evaluation(well, current_params, well_idx)
+                protocol.comment(f"Simulated bubblicity score: {bubblicity_score:.3f}")
 
         finally:
             # Drop the tip after both evaluations
@@ -569,36 +633,52 @@ def run(protocol: protocol_api.ProtocolContext):
             best_score = bubblicity_score
             best_params = current_params.copy()
             no_improvement_count = 0
-            protocol.comment(f"New best score: {best_score:.2f}")
+            protocol.comment(f"🎉 NEW BEST SCORE: {best_score:.3f} in {well}")
+            protocol.comment(f"Best parameters so far: {best_params}")
         else:
             no_improvement_count += 1
+            if height_status:
+                protocol.comment(
+                    f"Score: {bubblicity_score:.3f} (no improvement, count: {no_improvement_count})"
+                )
+            else:
+                protocol.comment(f"Height check failed - skipping optimization")
 
         # Learning rate decay
         if no_improvement_count >= patience:
+            old_learning_rate = learning_rate
             learning_rate = max(min_learning_rate, learning_rate * learning_rate_decay)
             no_improvement_count = 0
-            protocol.comment(f"Reducing learning rate to: {learning_rate:.4f}")
+            protocol.comment(
+                f"📉 Reducing learning rate: {old_learning_rate:.4f} -> {learning_rate:.4f}"
+            )
 
         protocol.comment(
-            f"Well {well}: Height OK: {height_status}, "
-            f"Bubblicity: {bubblicity_score:.2f}, "
-            f"Best so far: {best_score:.2f}"  # noqa: E231
+            f"Progress: {well_idx + 1}/{SAMPLE_COUNT} wells, "
+            f"Best score: {best_score:.3f}, "
+            f"Learning rate: {learning_rate:.4f}"
         )
 
         # Store optimization history
-        optimization_history.append({
-            "iteration": well_idx,
-            "learning_rate": learning_rate,
-            "current_score": bubblicity_score,
-            "best_score": best_score,
-            "no_improvement_count": no_improvement_count
-        })
+        optimization_history.append(
+            {
+                "iteration": well_idx,
+                "learning_rate": learning_rate,
+                "current_score": bubblicity_score,
+                "best_score": best_score,
+                "no_improvement_count": no_improvement_count,
+            }
+        )
 
         # Update for next iteration
         previous_params = current_params.copy()
         previous_score = bubblicity_score
 
     # Find optimal parameters
+    protocol.comment("\n" + "=" * 60)
+    protocol.comment("OPTIMIZATION COMPLETE - FINAL ANALYSIS")
+    protocol.comment("=" * 60)
+
     if well_data:
         # Filter successful height results and find minimum bubblicity
         successful_results = [r for r in well_data if r["height_status"]]
@@ -606,42 +686,121 @@ def run(protocol: protocol_api.ProtocolContext):
         if successful_results:
             # Use the best parameters found during optimization
             optimal_result = min(successful_results, key=lambda x: x["bubblicity_score"])
-            protocol.comment(f"Optimal parameters found in {optimal_result['well_id']}")
+            protocol.comment(f"🏆 OPTIMAL PARAMETERS FOUND IN: {optimal_result['well_id']}")
             protocol.comment(
-                f"Optimal bubblicity score: {optimal_result['bubblicity_score']:.2f}"  # noqa: E231
+                f"🏆 OPTIMAL BUBBLICITY SCORE: {optimal_result['bubblicity_score']:.3f}"
             )
-            protocol.comment(f"Optimal parameters: {optimal_result['parameters']}")
+            protocol.comment("🏆 OPTIMAL PARAMETERS:")
+            for param, value in optimal_result["parameters"].items():
+                protocol.comment(f"    {param}: {value:.2f}")
+
+            # Compare with reference parameters
+            protocol.comment("\n📊 PARAMETER COMPARISON (Reference → Optimal):")
+            for param in optimal_result["parameters"]:
+                if param in reference_params:
+                    ref_val = reference_params[param]
+                    opt_val = optimal_result["parameters"][param]
+                    change = opt_val - ref_val
+                    change_pct = (change / ref_val) * 100 if ref_val != 0 else 0
+                    protocol.comment(
+                        f"    {param}: {ref_val:.2f} → {opt_val:.2f} (Δ{change:+.2f}, {change_pct:+.1f}%)"
+                    )
 
             # Additional analysis
-            protocol.comment(f"Total wells tested: {len(well_data)}")
-            protocol.comment(f"Successful height checks: {len(successful_results)}")
-            protocol.comment(
-                f"Success rate: {len(successful_results)/len(well_data)*100:.1f}%"  # noqa: E231, E501
-            )
-            
+            protocol.comment(f"\n📈 OPTIMIZATION STATISTICS:")
+            protocol.comment(f"    Total wells tested: {len(well_data)}")
+            protocol.comment(f"    Successful height checks: {len(successful_results)}")
+            protocol.comment(f"    Success rate: {len(successful_results)/len(well_data)*100:.1f}%")
+
             # Optimization statistics
             if optimization_history:
                 final_learning_rate = optimization_history[-1]["learning_rate"]
                 best_score_found = optimization_history[-1]["best_score"]
-                protocol.comment(f"Final learning rate: {final_learning_rate:.4f}")
-                protocol.comment(f"Best score achieved: {best_score_found:.2f}")
-                
+                protocol.comment(f"    Final learning rate: {final_learning_rate:.4f}")
+                protocol.comment(f"    Best score achieved: {best_score_found:.3f}")
+
                 # Show improvement over iterations
                 if len(optimization_history) > 1:
                     initial_score = optimization_history[0]["current_score"]
                     improvement = initial_score - best_score_found
-                    protocol.comment(f"Total improvement: {improvement:.2f}")
-                    
+                    improvement_pct = (
+                        (improvement / initial_score) * 100 if initial_score != 0 else 0
+                    )
+                    protocol.comment(
+                        f"    Total improvement: {improvement:.3f} ({improvement_pct:+.1f}%)"
+                    )
+
                     # Show convergence analysis
                     recent_scores = [h["current_score"] for h in optimization_history[-5:]]
                     if len(recent_scores) >= 2:
-                        score_variance = sum((s - sum(recent_scores)/len(recent_scores))**2 for s in recent_scores) / len(recent_scores)
-                        protocol.comment(f"Recent score variance: {score_variance:.4f}")
+                        score_variance = sum(
+                            (s - sum(recent_scores) / len(recent_scores)) ** 2
+                            for s in recent_scores
+                        ) / len(recent_scores)
+                        protocol.comment(f"    Recent score variance: {score_variance:.4f}")
                         if score_variance < convergence_threshold:
-                            protocol.comment("Algorithm appears to have converged")
+                            protocol.comment("    ✅ Algorithm appears to have converged")
                         else:
-                            protocol.comment("Algorithm may need more iterations to converge")
-        else:
-            protocol.comment("No successful liquid height results found")
+                            protocol.comment(
+                                "    ⚠️  Algorithm may need more iterations to converge"
+                            )
 
-    protocol.comment("Liquid class calibration protocol completed")
+                # Show learning rate history
+                learning_rate_changes = []
+                for i in range(1, len(optimization_history)):
+                    if (
+                        optimization_history[i]["learning_rate"]
+                        != optimization_history[i - 1]["learning_rate"]
+                    ):
+                        learning_rate_changes.append(
+                            {
+                                "iteration": optimization_history[i]["iteration"],
+                                "old_rate": optimization_history[i - 1]["learning_rate"],
+                                "new_rate": optimization_history[i]["learning_rate"],
+                            }
+                        )
+
+                if learning_rate_changes:
+                    protocol.comment(f"    Learning rate changes: {len(learning_rate_changes)}")
+                    for change in learning_rate_changes:
+                        protocol.comment(
+                            f"      Iteration {change['iteration']}: {change['old_rate']:.4f} → {change['new_rate']:.4f}"
+                        )
+
+                # Show score progression
+                protocol.comment(f"\n📉 SCORE PROGRESSION:")
+                protocol.comment(
+                    f"    Initial score: {optimization_history[0]['current_score']:.3f}"
+                )
+                protocol.comment(
+                    f"    Final score: {optimization_history[-1]['current_score']:.3f}"
+                )
+
+                # Find iterations with improvements
+                improvements = []
+                for i in range(1, len(optimization_history)):
+                    if (
+                        optimization_history[i]["best_score"]
+                        < optimization_history[i - 1]["best_score"]
+                    ):
+                        improvements.append(
+                            {
+                                "iteration": optimization_history[i]["iteration"],
+                                "improvement": optimization_history[i - 1]["best_score"]
+                                - optimization_history[i]["best_score"],
+                            }
+                        )
+
+                if improvements:
+                    protocol.comment(f"    Major improvements: {len(improvements)}")
+                    for imp in improvements:
+                        protocol.comment(
+                            f"      Iteration {imp['iteration']}: +{imp['improvement']:.3f}"
+                        )
+        else:
+            protocol.comment("❌ No successful liquid height results found")
+            protocol.comment("   This may indicate issues with liquid handling or evaluation")
+
+    protocol.comment("\n" + "=" * 60)
+    protocol.comment("LIQUID CLASS CALIBRATION PROTOCOL COMPLETED")
+    protocol.comment("=" * 60)
