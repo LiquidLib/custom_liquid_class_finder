@@ -53,7 +53,7 @@ P1000,Glycerol 99%,41.175,20,4,19.215,20,5.0,No
 ### 1. Basic Usage
 
 ```python
-from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
 
 # Get parameters for your reference data
 params = get_liquid_class_params(PipetteType.P1000, LiquidType.GLYCEROL_99)
@@ -91,7 +91,7 @@ if liquid_params:
 ### 3. CSV Import/Export
 
 ```python
-from liquid_classes import export_liquid_classes_csv, import_liquid_classes_from_csv
+from liquids.liquid_classes import export_liquid_classes_csv, import_liquid_classes_from_csv
 
 # Export all liquid classes to CSV
 csv_data = export_liquid_classes_csv()
@@ -107,7 +107,7 @@ import_liquid_classes_from_csv(csv_data)
 ### 4. Adding New Liquid Classes
 
 ```python
-from liquid_classes import LiquidClassParams, add_liquid_class_params
+from liquids.liquid_classes import LiquidClassParams, add_liquid_class_params
 
 # Create new liquid class
 new_params = LiquidClassParams(
@@ -130,7 +130,8 @@ add_liquid_class_params(new_params)
 
 ```
 ├── liquid_classes.py          # Core liquid class system
-├── liquid_class_demo.py       # Demonstration script
+├── liquid_class_demo_basic.py # Basic demonstration script
+├── liquid_class_demo_custom.py # Comprehensive demonstration script
 ├── test_liquid_classes.py     # Test suite
 ├── protocol.py               # Updated protocol with integration
 └── LIQUID_CLASS_README.md    # This file
@@ -262,7 +263,7 @@ if params is None:
 Enable debug output by running the demo script:
 
 ```bash
-python liquid_class_demo.py
+python liquid_class_demo_basic.py
 ```
 
 This will show all available liquid classes and demonstrate functionality.

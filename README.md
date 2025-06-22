@@ -25,6 +25,7 @@ The project now includes a **Liquid Class Configuration System** that provides:
 - 📋 **Liquid Class Registry**: Centralized parameter management system
 - 🔄 **CSV Data Exchange**: Import/export parameters in standard format
 - 🎛️ **Configurable Liquids**: Support for multiple liquid types and pipettes
+- 🚀 **Simulation Testing**: Built-in simulation tool for rapid parameter testing and protocol generation
 
 ## Your Reference Data
 
@@ -110,7 +111,8 @@ The liquid class system provides:
 
 - **`liquid_classes.py`**: Core system with parameter registry
 - **`liquid_class_manager.py`**: Command-line utility for management
-- **`liquid_class_demo.py`**: Demonstration script
+- **`liquid_class_demo_basic.py`**: Basic demonstration script
+- **`liquid_class_demo_custom.py`**: Comprehensive demonstration script
 - **`test_liquid_classes.py`**: Comprehensive test suite
 
 ### **Supported Pipettes & Liquids**
@@ -125,7 +127,7 @@ The liquid class system provides:
 ### **Quick Start with Liquid Classes**
 
 ```python
-from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
 
 # Get your reference data
 params = get_liquid_class_params(PipetteType.P1000, LiquidType.GLYCEROL_99)
@@ -136,16 +138,16 @@ print(f"Aspiration Rate: {params.aspiration_rate} µL/s")  # 41.175
 
 ```bash
 # List all liquid classes
-python liquid_class_manager.py list
+python -m liquids.liquid_class_manager list
 
 # Show your reference data
-python liquid_class_manager.py show P1000 "Glycerol 99%"
+python -m liquids.liquid_class_manager show P1000 "Glycerol 99%"
 
 # Export to CSV
-python liquid_class_manager.py export my_liquid_classes.csv
+python -m liquids.liquid_class_manager export my_liquid_classes.csv
 
 # Import from CSV
-python liquid_class_manager.py import my_liquid_classes.csv
+python -m liquids.liquid_class_manager import my_liquid_classes.csv
 ```
 
 ### **Protocol Integration**
@@ -189,6 +191,59 @@ The updated protocol automatically:
 4. **Add Liquid**: Load 15mL of your chosen liquid in reservoir position A1
 5. **Run Protocol**: Execute the protocol and monitor progress
 6. **Review Results**: Check the protocol comments for optimal parameters
+
+### **🚀 Protocol Simulation & Testing**
+
+The `run_simulation.py` script is your **go-to tool** for testing protocols with different parameters before running them on physical machines. This is especially valuable for:
+
+- **🧪 Rapid Parameter Testing**: Test different liquid types and sample counts without physical setup
+- **🔧 Protocol Generation**: Generate customized protocol files for physical robot deployment
+- **⚡ Fast Iteration**: Quickly iterate through parameter combinations to find optimal settings
+- **💾 Export Capability**: Save generated protocols for use on physical Opentrons machines
+
+#### **Quick Simulation Examples**
+
+```bash
+# Test with default parameters (GLYCEROL_50, 8 samples)
+python run_simulation.py
+
+# Test with specific liquid type
+python run_simulation.py GLYCEROL_99
+
+# Test with specific liquid and sample count
+python run_simulation.py GLYCEROL_90 16
+
+# Generate a protocol file for physical machine use
+python run_simulation.py GLYCEROL_99 96 --export
+```
+
+#### **Available Liquid Types**
+
+```bash
+# Test any of these liquid types:
+GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99
+PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100
+ENGINE_OIL_100, WATER, DMSO, ETHANOL
+```
+
+#### **Workflow for Physical Deployment**
+
+1. **Simulate First**: Test your parameters with `run_simulation.py`
+2. **Export Protocol**: Use `--export` flag to generate a protocol file
+3. **Deploy**: Upload the generated protocol to your physical Opentrons machine
+4. **Run**: Execute with confidence knowing parameters are tested
+
+**Example workflow:**
+```bash
+# Test parameters for glycerol 99% with 24 samples
+python run_simulation.py GLYCEROL_99 24
+
+# If results look good, generate protocol for physical machine
+python run_simulation.py GLYCEROL_99 24 --export
+# This creates: protocol_GLYCEROL_99_24samples.py
+
+# Upload protocol_GLYCEROL_99_24samples.py to your Opentrons App
+```
 
 ### **Liquid Class Management**
 
@@ -305,8 +360,8 @@ The protocol uses a simplified gradient descent approach:
 
 4. **Test the liquid class system**:
    ```bash
-   python test_liquid_classes.py
-   python liquid_class_demo.py
+   python -m pytest tests/test_liquid_classes.py
+   python -m liquids.liquid_class_demo_basic
    ```
 
 ### **Development Workflow**
@@ -392,20 +447,33 @@ The project follows these style guidelines:
 ```
 liquid-class-finder/
 ├── protocol.py              # Main protocol file (updated with liquid class integration)
-├── liquid_classes.py        # Core liquid class system
-├── liquid_class_manager.py  # Command-line management utility
-├── liquid_class_demo.py     # Demonstration script
-├── test_liquid_classes.py   # Liquid class system tests
-├── LIQUID_CLASS_README.md   # Detailed liquid class documentation
-├── requirements.txt         # Production dependencies
-├── pyproject.toml          # Project configuration
-├── Makefile                # Development commands
-├── .pre-commit-config.yaml # Pre-commit hooks
-├── .gitignore             # Git ignore patterns
-├── tests/                 # Test suite
+├── protocol_env.py          # Environment-based protocol
+├── run_simulation.py        # 🚀 Protocol simulation & testing tool
+├── liquids/                 # Liquid class system
+│   ├── liquid_classes.py        # Core liquid class system
+│   ├── liquid_class_manager.py  # Command-line management utility
+│   ├── liquid_class_demo_basic.py  # Basic demonstration script
+│   ├── liquid_class_demo_custom.py # Comprehensive demonstration script
+│   └── liquid_classes.csv       # Default liquid class data
+├── tests/                  # Test suite
 │   ├── __init__.py
-│   └── test_protocol.py
-└── README.md              # This file
+│   ├── test_protocol.py
+│   ├── test_liquid_classes.py
+│   ├── test_protocol_import.py
+│   ├── test_optimization.py
+│   └── test_logging.py
+├── config/                 # Configuration files
+│   └── example_config.json
+├── scripts/                # Utility scripts
+│   └── setup_dev.py
+├── docs/                   # Documentation
+│   └── LIQUID_CLASS_README.md
+├── requirements.txt        # Production dependencies
+├── pyproject.toml         # Project configuration
+├── Makefile               # Development commands
+├── .pre-commit-config.yaml # Pre-commit hooks
+├── .gitignore            # Git ignore patterns
+└── README.md             # This file
 ```
 
 #### **Adding New Features**
@@ -443,9 +511,9 @@ For debugging Opentrons protocols:
 
 For debugging liquid class system:
 
-1. **Run the demo script**: `python liquid_class_demo.py`
-2. **Use the manager utility**: `python liquid_class_manager.py list`
-3. **Run tests**: `python test_liquid_classes.py`
+1. **Run the demo script**: `python -m liquids.liquid_class_demo_basic`
+2. **Use the manager utility**: `python -m liquids.liquid_class_manager list`
+3. **Run tests**: `python -m pytest tests/test_liquid_classes.py`
 
 #### **Dependencies**
 

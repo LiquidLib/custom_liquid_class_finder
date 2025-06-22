@@ -3,7 +3,7 @@
 Demonstration of the Liquid Class System with Default Classes
 """
 
-from liquid_classes import (
+from .liquid_classes import (
     liquid_class_registry,
     PipetteType,
     LiquidType,
@@ -79,7 +79,7 @@ def demo_protocol_integration():
     # Example protocol snippet
     protocol_code = """
 # Example Opentrons protocol using liquid classes
-from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+from .liquid_classes import get_liquid_class_params, PipetteType, LiquidType
 
 def run(protocol):
     # Get liquid class parameters

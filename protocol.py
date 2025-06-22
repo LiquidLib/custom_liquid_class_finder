@@ -11,10 +11,15 @@ if protocol_dir not in sys.path:
     sys.path.insert(0, protocol_dir)
 
 from opentrons import protocol_api, types
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 # Import liquid classes
-from liquid_classes import get_liquid_class_params, PipetteType, LiquidType, LiquidClassParams
+from liquids.liquid_classes import (
+    get_liquid_class_params,
+    PipetteType,
+    LiquidType,
+    LiquidClassParams,
+)
 
 metadata = {
     "protocolName": "Liquid Class Calibration with Gradient Descent",
@@ -31,47 +36,45 @@ requirements = {"robotType": "Flex", "apiLevel": "2.22"}
 def get_default_liquid_class_params(pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:
     """Get default liquid class parameters for combinations not in the registry"""
 
-    # Default parameters based on pipette type
+    # Initialize base_params with default values
+    base_params: Dict[str, Any] = {
+        "aspiration_rate": 150.0,
+        "aspiration_delay": 1.0,
+        "aspiration_withdrawal_rate": 5.0,
+        "dispense_rate": 150.0,
+        "dispense_delay": 1.0,
+        "blowout_rate": 100.0,
+        "touch_tip": True,
+    }
+
+    # Adjust parameters based on pipette type
     if pipette == PipetteType.P1000:
-        base_params = {
-            "aspiration_rate": 150.0,
-            "aspiration_delay": 1.0,
-            "aspiration_withdrawal_rate": 5.0,
-            "dispense_rate": 150.0,
-            "dispense_delay": 1.0,
-            "blowout_rate": 100.0,
-            "touch_tip": True,
-        }
+        # Use default values (already set above)
+        pass
     elif pipette == PipetteType.P300:
-        base_params = {
-            "aspiration_rate": 50.0,
-            "aspiration_delay": 1.0,
-            "aspiration_withdrawal_rate": 5.0,
-            "dispense_rate": 50.0,
-            "dispense_delay": 1.0,
-            "blowout_rate": 10.0,
-            "touch_tip": True,
-        }
+        base_params.update(
+            {
+                "aspiration_rate": 50.0,
+                "dispense_rate": 50.0,
+                "blowout_rate": 10.0,
+            }
+        )
     elif pipette == PipetteType.P50:
-        base_params = {
-            "aspiration_rate": 10.0,
-            "aspiration_delay": 1.0,
-            "aspiration_withdrawal_rate": 5.0,
-            "dispense_rate": 10.0,
-            "dispense_delay": 1.0,
-            "blowout_rate": 5.0,
-            "touch_tip": True,
-        }
+        base_params.update(
+            {
+                "aspiration_rate": 10.0,
+                "dispense_rate": 10.0,
+                "blowout_rate": 5.0,
+            }
+        )
     else:  # P20
-        base_params = {
-            "aspiration_rate": 5.0,
-            "aspiration_delay": 1.0,
-            "aspiration_withdrawal_rate": 5.0,
-            "dispense_rate": 5.0,
-            "dispense_delay": 1.0,
-            "blowout_rate": 1.0,
-            "touch_tip": True,
-        }
+        base_params.update(
+            {
+                "aspiration_rate": 5.0,
+                "dispense_rate": 5.0,
+                "blowout_rate": 1.0,
+            }
+        )
 
     # Adjust parameters based on liquid type
     if liquid == LiquidType.WATER:
@@ -89,7 +92,17 @@ def get_default_liquid_class_params(pipette: PipetteType, liquid: LiquidType) ->
         base_params["blowout_rate"] *= 0.3
         base_params["touch_tip"] = True
 
-    return LiquidClassParams(pipette=pipette, liquid=liquid, **base_params)
+    return LiquidClassParams(
+        pipette=pipette,
+        liquid=liquid,
+        aspiration_rate=base_params["aspiration_rate"],
+        aspiration_delay=base_params["aspiration_delay"],
+        aspiration_withdrawal_rate=base_params["aspiration_withdrawal_rate"],
+        dispense_rate=base_params["dispense_rate"],
+        dispense_delay=base_params["dispense_delay"],
+        blowout_rate=base_params["blowout_rate"],
+        touch_tip=bool(base_params["touch_tip"]),
+    )
 
 
 def add_parameters(parameters):
@@ -478,18 +491,21 @@ def run(protocol: protocol_api.ProtocolContext):
         final_score = max(0.0, base_score + noise + edge_penalty)
 
         # Log evaluation breakdown
-        protocol.comment(f"  Evaluation breakdown:")
+        protocol.comment("  Evaluation breakdown:")
         protocol.comment(
-            f"    Aspiration factor: {aspiration_factor:.3f} (contribution: {aspiration_contribution:.3f})"
+            f"    Aspiration factor: {aspiration_factor:.3f} "
+            f"(contribution: {aspiration_contribution:.3f})"
         )
         protocol.comment(
-            f"    Dispense factor: {dispense_factor:.3f} (contribution: {dispense_contribution:.3f})"
+            f"    Dispense factor: {dispense_factor:.3f} "
+            f"(contribution: {dispense_contribution:.3f})"
         )
         protocol.comment(
-            f"    Blowout factor: {blowout_factor:.3f} (contribution: {blowout_contribution:.3f})"
+            f"    Blowout factor: {blowout_factor:.3f} "
+            f"(contribution: {blowout_contribution:.3f})"
         )
         protocol.comment(
-            f"    Delay factor: {delay_factor:.3f} (contribution: {delay_contribution:.3f})"
+            f"    Delay factor: {delay_factor:.3f} " f"(contribution: {delay_contribution:.3f})"
         )
         protocol.comment(f"    Base score: {base_score:.3f}")
         protocol.comment(f"    Noise: {noise:+.3f}")
@@ -501,7 +517,6 @@ def run(protocol: protocol_api.ProtocolContext):
     # Main optimization loop - test all wells individually
     current_params = reference_params.copy()
     previous_params = reference_params.copy()
-    previous_score = float("inf")
     best_score = float("inf")
     best_params = reference_params.copy()
     learning_rate = initial_learning_rate
@@ -535,7 +550,8 @@ def run(protocol: protocol_api.ProtocolContext):
                 second_last_result = well_data[-2]
 
                 protocol.comment(
-                    f"Previous scores: {second_last_result['bubblicity_score']:.3f} -> {last_result['bubblicity_score']:.3f}"
+                    f"Previous scores: {second_last_result['bubblicity_score']:.3f} -> "
+                    f"{last_result['bubblicity_score']:.3f}"
                 )
 
                 # Calculate gradients based on last two results
@@ -554,12 +570,13 @@ def run(protocol: protocol_api.ProtocolContext):
                 )
 
                 protocol.comment(f"Learning rate: {learning_rate:.4f}")
-                protocol.comment(f"Parameter changes:")
+                protocol.comment("Parameter changes:")
                 for param in current_params:
                     if param in last_result["parameters"]:
                         change = current_params[param] - last_result["parameters"][param]
                         protocol.comment(
-                            f"  {param}: {last_result['parameters'][param]:.2f} -> {current_params[param]:.2f} (Δ{change:+.2f})"
+                            f"  {param}: {last_result['parameters'][param]:.2f} -> "
+                            f"{current_params[param]:.2f} (Δ{change:+.2f})"
                         )
             else:
                 # For second well, make small random adjustments to explore
@@ -571,7 +588,8 @@ def run(protocol: protocol_api.ProtocolContext):
                         adjustment = (well_idx - 1) * gradient_step[param] * 0.1
                         current_params[param] += adjustment
                         protocol.comment(
-                            f"  {param}: {previous_params[param]:.2f} -> {current_params[param]:.2f} (Δ{adjustment:+.2f})"
+                            f"  {param}: {previous_params[param]:.2f} -> "
+                            f"{current_params[param]:.2f} (Δ{adjustment:+.2f})"
                         )
 
             # Apply constraints
@@ -584,7 +602,8 @@ def run(protocol: protocol_api.ProtocolContext):
                         and current_params[param] != constrained_params[param]
                     ):
                         protocol.comment(
-                            f"  {param}: {current_params[param]:.2f} -> {constrained_params[param]:.2f}"
+                            f"  {param}: {current_params[param]:.2f} -> "
+                            f"{constrained_params[param]:.2f}"
                         )
             current_params = constrained_params
 
@@ -639,10 +658,11 @@ def run(protocol: protocol_api.ProtocolContext):
             no_improvement_count += 1
             if height_status:
                 protocol.comment(
-                    f"Score: {bubblicity_score:.3f} (no improvement, count: {no_improvement_count})"
+                    f"Score: {bubblicity_score:.3f} (no improvement, count: "
+                    f"{no_improvement_count})"
                 )
             else:
-                protocol.comment(f"Height check failed - skipping optimization")
+                protocol.comment("Height check failed - skipping optimization")
 
         # Learning rate decay
         if no_improvement_count >= patience:
@@ -650,7 +670,7 @@ def run(protocol: protocol_api.ProtocolContext):
             learning_rate = max(min_learning_rate, learning_rate * learning_rate_decay)
             no_improvement_count = 0
             protocol.comment(
-                f"📉 Reducing learning rate: {old_learning_rate:.4f} -> {learning_rate:.4f}"
+                f"📉 Reducing learning rate: {old_learning_rate:.4f} -> " f"{learning_rate:.4f}"
             )
 
         protocol.comment(
@@ -672,7 +692,6 @@ def run(protocol: protocol_api.ProtocolContext):
 
         # Update for next iteration
         previous_params = current_params.copy()
-        previous_score = bubblicity_score
 
     # Find optimal parameters
     protocol.comment("\n" + "=" * 60)
@@ -703,11 +722,12 @@ def run(protocol: protocol_api.ProtocolContext):
                     change = opt_val - ref_val
                     change_pct = (change / ref_val) * 100 if ref_val != 0 else 0
                     protocol.comment(
-                        f"    {param}: {ref_val:.2f} → {opt_val:.2f} (Δ{change:+.2f}, {change_pct:+.1f}%)"
+                        f"    {param}: {ref_val:.2f} → {opt_val:.2f} "
+                        f"(Δ{change:+.2f}, {change_pct:+.1f}%)"
                     )
 
             # Additional analysis
-            protocol.comment(f"\n📈 OPTIMIZATION STATISTICS:")
+            protocol.comment("\n📈 OPTIMIZATION STATISTICS:")
             protocol.comment(f"    Total wells tested: {len(well_data)}")
             protocol.comment(f"    Successful height checks: {len(successful_results)}")
             protocol.comment(f"    Success rate: {len(successful_results)/len(well_data)*100:.1f}%")
@@ -727,7 +747,7 @@ def run(protocol: protocol_api.ProtocolContext):
                         (improvement / initial_score) * 100 if initial_score != 0 else 0
                     )
                     protocol.comment(
-                        f"    Total improvement: {improvement:.3f} ({improvement_pct:+.1f}%)"
+                        f"    Total improvement: {improvement:.3f} (" f"{improvement_pct:+.1f}%)"
                     )
 
                     # Show convergence analysis
@@ -764,11 +784,12 @@ def run(protocol: protocol_api.ProtocolContext):
                     protocol.comment(f"    Learning rate changes: {len(learning_rate_changes)}")
                     for change in learning_rate_changes:
                         protocol.comment(
-                            f"      Iteration {change['iteration']}: {change['old_rate']:.4f} → {change['new_rate']:.4f}"
+                            f"      Iteration {change['iteration']}: "
+                            f"{change['old_rate']:.4f} → {change['new_rate']:.4f}"
                         )
 
                 # Show score progression
-                protocol.comment(f"\n📉 SCORE PROGRESSION:")
+                protocol.comment("\n📉 SCORE PROGRESSION:")
                 protocol.comment(
                     f"    Initial score: {optimization_history[0]['current_score']:.3f}"
                 )

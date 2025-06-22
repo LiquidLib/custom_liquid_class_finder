@@ -69,7 +69,7 @@ def filter_output(output):
 def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
     """Run the simulation with specified parameters"""
 
-    print(f"Running simulation with:")
+    print("Running simulation with:")
     print(f"  Liquid Type: {liquid_type}")
     print(f"  Sample Count: {sample_count}")
     print()
@@ -105,7 +105,7 @@ def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False
         if not export_temp:
             try:
                 os.unlink(temp_protocol)
-            except:
+            except OSError:
                 pass
         else:
             print(f"\nTemporary protocol file exported to: {temp_protocol}")

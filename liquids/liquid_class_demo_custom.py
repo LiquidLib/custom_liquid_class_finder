@@ -6,7 +6,7 @@ This script demonstrates how to use the liquid class configuration system
 with the reference data provided by the user.
 """
 
-from liquid_classes import (
+from .liquid_classes import (
     LiquidClassParams,
     PipetteType,
     LiquidType,

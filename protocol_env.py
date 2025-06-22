@@ -9,8 +9,8 @@ except NameError:
 if protocol_dir not in sys.path:
     sys.path.insert(0, protocol_dir)
 
-from opentrons import protocol_api, types
-from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+from opentrons import protocol_api
+from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
 
 metadata = {
     "protocolName": "Environment-Based Liquid Class Calibration",
@@ -34,7 +34,9 @@ def run(protocol: protocol_api.ProtocolContext):
     except KeyError:
         protocol.comment(f"Invalid liquid type: {liquid_type_str}, using GLYCEROL_50")
         protocol.comment(
-            "Available liquid types: GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99, PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100, ENGINE_OIL_100, WATER, DMSO, ETHANOL"
+            "Available liquid types: GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, "
+            "GLYCEROL_99, PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100, "
+            "ENGINE_OIL_100, WATER, DMSO, ETHANOL"
         )
         LIQUID_TYPE = LiquidType.GLYCEROL_50
 
@@ -82,7 +84,7 @@ def run(protocol: protocol_api.ProtocolContext):
         reference_params = liquid_class_params.to_dict()
 
     # Display the parameters being used
-    protocol.comment(f"Liquid Parameters:")
+    protocol.comment("Liquid Parameters:")
     protocol.comment(f"Aspiration Rate: {reference_params['aspiration_rate']} µL/s")
     protocol.comment(f"Aspiration Delay: {reference_params['aspiration_delay']} s")
     protocol.comment(f"Dispense Rate: {reference_params['dispense_rate']} µL/s")

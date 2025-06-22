@@ -5,8 +5,7 @@ for liquid class calibration.
 """
 
 import random
-import math
-from typing import Dict, List, Any
+from typing import Dict
 
 
 def simulate_realistic_evaluation(params: Dict[str, float], iteration: int) -> float:
@@ -132,8 +131,6 @@ def test_optimization():
 
     # Initialize
     current_params = reference_params.copy()
-    previous_params = reference_params.copy()
-    previous_score = float("inf")
     best_score = float("inf")
     best_params = reference_params.copy()
     learning_rate = initial_learning_rate
@@ -198,10 +195,6 @@ def test_optimization():
             for param in gradient_step.keys():
                 adjustment = gradient_step[param] * 0.1
                 current_params[param] += adjustment
-            current_params = apply_constraints(current_params, param_bounds)
-
-        previous_params = current_params.copy()
-        previous_score = current_score
 
         print(f"Iteration {iteration}: Score = {current_score:.3f}, Best = {best_score:.3f}")
 

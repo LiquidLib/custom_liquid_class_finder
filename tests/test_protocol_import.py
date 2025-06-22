@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+    from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
 
     print("✅ Successfully imported liquid_classes module")
 

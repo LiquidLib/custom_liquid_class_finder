@@ -7,7 +7,7 @@ correctly with the reference data provided by the user.
 """
 
 import unittest
-from liquid_classes import (
+from liquids.liquid_classes import (
     LiquidClassParams,
     PipetteType,
     LiquidType,

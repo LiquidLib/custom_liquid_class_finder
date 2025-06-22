@@ -4,9 +4,6 @@ Test script to demonstrate the enhanced logging output
 that will appear in the simulation log during optimization.
 """
 
-import random
-from typing import Dict, List, Any
-
 
 def simulate_protocol_logging():
     """Simulate the logging output that would appear in the protocol"""
@@ -17,7 +14,9 @@ def simulate_protocol_logging():
     print("Testing 10 wells with P1000 pipette")
     print("Liquid type: GLYCEROL_99")
     print(
-        "Reference parameters: {'aspiration_rate': 150.0, 'aspiration_delay': 1.0, 'aspiration_withdrawal_rate': 5.0, 'dispense_rate': 150.0, 'dispense_delay': 1.0, 'blowout_rate': 100.0}"
+        "Reference parameters: {'aspiration_rate': 150.0, 'aspiration_delay': 1.0, "
+        "'aspiration_withdrawal_rate': 5.0, 'dispense_rate': 150.0, "
+        "'dispense_delay': 1.0, 'blowout_rate': 100.0}"
     )
     print("Initial learning rate: 0.1")
     print("=" * 60)
@@ -53,7 +52,8 @@ def simulate_protocol_logging():
         else:
             print(f"Previous scores: {3.0 - well_idx*0.2:.3f} -> {2.8 - well_idx*0.2:.3f}")
             print(
-                "Calculated gradients: {'aspiration_rate': -0.1, 'dispense_rate': -0.1, 'blowout_rate': -0.05}"
+                "Calculated gradients: {'aspiration_rate': -0.1, 'dispense_rate': -0.1, "
+                "'blowout_rate': -0.05}"
             )
             print("Learning rate: 0.1000")
             print("Parameter changes:")

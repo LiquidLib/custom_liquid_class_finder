@@ -345,15 +345,19 @@ class LiquidClassRegistry:
 
     def export_csv(self) -> str:
         """Export all liquid classes to CSV format"""
+        # Use header with no spaces after commas for compatibility
         header = (
-            "Pipette, Liquid, Aspiration Rate (µL/s), Aspiration Delay (s), "
-            "Aspiration Withdrawal Rate (mm/s), Dispense Rate (µL/s), "
-            "Dispense Delay (s), Blowout Rate (µL/s), Touch tip"
+            "Pipette,Liquid,Aspiration Rate (µL/s),Aspiration Delay (s),"
+            "Aspiration Withdrawal Rate (mm/s),Dispense Rate (µL/s),"
+            "Dispense Delay (s),Blowout Rate (µL/s),Touch tip"
         )
         rows = [header]
 
         for liquid_class in self._liquid_classes.values():
-            rows.append(str(liquid_class))
+            # Export with no extra spaces after commas
+            row = str(liquid_class)
+            row = ",".join([field.strip() for field in row.split(",")])
+            rows.append(row)
 
         return "\n".join(rows)
 
@@ -363,6 +367,16 @@ class LiquidClassRegistry:
         if len(lines) < 2:
             raise ValueError("CSV must have at least a header and one data row")
 
+        # Accept both header formats (with or without spaces after commas)
+        header_no_space = (
+            "Pipette,Liquid,Aspiration Rate (µL/s),Aspiration Delay (s),"
+            "Aspiration Withdrawal Rate (mm/s),Dispense Rate (µL/s),"
+            "Dispense Delay (s),Blowout Rate (µL/s),Touch tip"
+        )
+        header = lines[0].replace(" ", "")
+        if header != header_no_space.replace(" ", ""):
+            raise ValueError("CSV header does not match expected format")
+
         # Skip header
         for line in lines[1:]:
             if line.strip():
@@ -370,7 +384,8 @@ class LiquidClassRegistry:
 
     def _parse_csv_line(self, line: str):
         """Parse a single CSV line into a LiquidClassParams object"""
-        parts = line.split(",")
+        # Strip whitespace from all fields
+        parts = [p.strip() for p in line.split(",")]
         if len(parts) != 9:
             raise ValueError(f"Invalid CSV line format: {line}")
 

@@ -9,7 +9,7 @@ and interactive parameter management.
 import argparse
 import sys
 
-from liquid_classes import (
+from .liquid_classes import (
     LiquidClassParams,
     PipetteType,
     LiquidType,
