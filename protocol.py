@@ -1,4 +1,4 @@
-from opentrons import protocol_api
+from opentrons import protocol_api, types
 import math
 from typing import List, Dict, Any
 
@@ -157,9 +157,10 @@ def run(protocol: protocol_api.ProtocolContext):
         height_status = True
         for x_offset, y_offset in horizontal_sweep_points:
             try:
-                # Move to sweep position
+                # Move to sweep position using well coordinates
+                # Calculate relative position from well center
                 target_location = well.bottom(expected_height).move(
-                    protocol.geometry.Point(x_offset, y_offset, 0)
+                    types.Point(x_offset, y_offset, 0)
                 )
                 pipette.move_to(target_location)
 
@@ -194,7 +195,7 @@ def run(protocol: protocol_api.ProtocolContext):
             for x_offset, y_offset in horizontal_sweep_points:
                 try:
                     target_location = well.bottom(check_height).move(
-                        protocol.geometry.Point(x_offset, y_offset, 0)
+                        types.Point(x_offset, y_offset, 0)
                     )
                     pipette.move_to(target_location)
 
