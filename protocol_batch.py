@@ -10,7 +10,7 @@ except NameError:
 if protocol_dir not in sys.path:
     sys.path.insert(0, protocol_dir)
 
-from opentrons import protocol_api, types
+from opentrons import protocol_api
 from typing import List, Dict, Any
 
 # Import liquid classes
@@ -276,20 +276,20 @@ def run(protocol: protocol_api.ProtocolContext):
     # Parameter bounds for constraint checking
     param_bounds = {
         "aspiration_rate": (10.0, 500.0),
-        "aspiration_delay": (0.0, 5.0),
+        "aspiration_delay": (0.0, 2.0),
         "aspiration_withdrawal_rate": (1.0, 20.0),
         "dispense_rate": (10.0, 500.0),
-        "dispense_delay": (0.0, 5.0),
+        "dispense_delay": (0.0, 2.0),
         "blowout_rate": (10.0, 300.0),
     }
 
     # Gradient descent parameters
     gradient_step = {
         "aspiration_rate": 10.0,
-        "aspiration_delay": 0.1,
+        "aspiration_delay": 0.05,
         "aspiration_withdrawal_rate": 0.5,
         "dispense_rate": 10.0,
-        "dispense_delay": 0.1,
+        "dispense_delay": 0.05,
         "blowout_rate": 5.0,
     }
 
@@ -303,13 +303,9 @@ def run(protocol: protocol_api.ProtocolContext):
     # Detection parameters
     expected_liquid_height = 2.0  # mm from bottom
     bubble_check_increments = [0.5, 1.0, 1.5, 2.0, 2.5]  # mm above expected height
-    horizontal_sweep_points = [
-        (0, 0),
-        (1, 0),
-        (-1, 0),
-        (0, 1),
-        (0, -1),
-    ]  # relative positions
+
+    # Control flag for real vs simulation detection
+    USE_REAL_DETECTION = True  # Set to False for simulation mode
 
     # Data storage
     batch_data: List[Dict[str, Any]] = []
@@ -358,82 +354,48 @@ def run(protocol: protocol_api.ProtocolContext):
 
         return updated_params
 
-    def evaluate_batch_liquid_height(wells, pipette, expected_height):
-        """Evaluate if liquid is at expected height for a batch of wells"""
+    def evaluate_batch_liquid_height_real(wells, pipette, expected_height):
+        """Real liquid height evaluation using capacitive sensing"""
         protocol.comment(f"Evaluating liquid height in batch of {len(wells)} wells")
 
         height_statuses = []
 
         for well in wells:
-            # Move to expected height
-            pipette.move_to(well.bottom(expected_height))
+            try:
+                # Try to aspirate 0µL at expected height - this triggers capacitive detection
+                pipette.aspirate(0, well.bottom(expected_height))
+                height_statuses.append(True)
+                protocol.comment(f"Liquid detected in {well} at height {expected_height}mm")
+            except Exception:
+                height_statuses.append(False)
+                protocol.comment(f"No liquid detected in {well} at height {expected_height}mm")
 
-            # Horizontal sweep to check pressure
-            well_height_status = True
-            for x_offset, y_offset in horizontal_sweep_points:
-                try:
-                    # Move to sweep position using well coordinates
-                    target_location = well.bottom(expected_height).move(
-                        types.Point(x_offset, y_offset, 0)
-                    )
-                    pipette.move_to(target_location)
-
-                    # Check for liquid presence (simulated pressure check)
-                    liquid_detected = pipette.detect_liquid_presence(well)
-                    if not liquid_detected:
-                        well_height_status = False
-                        break
-
-                except Exception as e:
-                    protocol.comment(f"Error during height check in {well}: {e}")
-                    well_height_status = False
-                    break
-
-            height_statuses.append(well_height_status)
-
-        # Return to safe height
-        pipette.move_to(wells[0].top(10))
         return height_statuses
 
-    def evaluate_batch_bubblicity(wells, pipette, expected_height):
-        """Evaluate bubble presence for a batch of wells"""
+    def evaluate_batch_bubblicity_real(wells, pipette, expected_height):
+        """Real bubble detection using height scanning with capacitive sensing"""
         protocol.comment(f"Evaluating bubblicity in batch of {len(wells)} wells")
 
         bubblicity_scores = []
 
         for well in wells:
-            well_bubblicity_score = 0
+            well_score = 0
 
+            # Check at different heights above expected liquid level
             for height_increment in bubble_check_increments:
                 check_height = expected_height + height_increment
-                pipette.move_to(well.bottom(check_height))
 
-                # Check for bubbles at this height
-                bubble_detected = False
-                for x_offset, y_offset in horizontal_sweep_points:
-                    try:
-                        target_location = well.bottom(check_height).move(
-                            types.Point(x_offset, y_offset, 0)
-                        )
-                        pipette.move_to(target_location)
+                try:
+                    # Try to aspirate 0µL at this height
+                    pipette.aspirate(0, well.bottom(check_height))
+                    # If successful, there's liquid (possibly a bubble) at this height
+                    well_score += height_increment
+                    protocol.comment(f"Bubble detected in {well} at {check_height}mm")
+                except Exception:
+                    # No liquid at this height
+                    continue
 
-                        # Simulated bubble detection via pressure
-                        if pipette.detect_liquid_presence(well):
-                            bubble_detected = True
-                            well_bubblicity_score += height_increment  # Weight by height
-                            break
-
-                    except Exception as e:
-                        protocol.comment(f"Error during bubble check in {well}: {e}")
-                        break
-
-                if bubble_detected:
-                    break
-
-                # Return to safe height between checks
-                pipette.move_to(well.top(10))
-
-            bubblicity_scores.append(well_bubblicity_score)
+            bubblicity_scores.append(well_score)
 
         return bubblicity_scores
 
@@ -442,32 +404,67 @@ def run(protocol: protocol_api.ProtocolContext):
         protocol.comment(f"Dispensing to batch of {len(wells)} wells with parameters: {params}")
 
         # Pick up tip - 8-channel operation
+        protocol.comment("Picking up 8-channel tip...")
         pipette.pick_up_tip()
 
         try:
             # Set flow rates
+            protocol.comment(
+                f"Setting flow rates - Aspirate: {params['aspiration_rate']}, Dispense: {params['dispense_rate']}, Blowout: {params['blowout_rate']}"  # noqa: E501
+            )
             pipette.flow_rate.aspirate = params["aspiration_rate"]
             pipette.flow_rate.dispense = params["dispense_rate"]
             pipette.flow_rate.blow_out = params["blowout_rate"]
 
             # Aspirate from reservoir - 8-channel will aspirate from A1
+            protocol.comment(f"Aspirating {volume}µL from reservoir A1...")
             pipette.aspirate(volume, reservoir["A1"])
-            protocol.delay(seconds=params["aspiration_delay"])
+
+            # Apply aspiration delay (capped to prevent excessive delays)
+            aspiration_delay = max(
+                0.0, min(params["aspiration_delay"], 2.0)
+            )  # Cap at 2 seconds, minimum 0
+            if aspiration_delay > 0:
+                protocol.comment(f"Applying aspiration delay: {aspiration_delay} seconds")
+                protocol.delay(seconds=aspiration_delay)
 
             # Dispense into batch of wells - 8-channel will dispense to all wells in batch
-            pipette.dispense(volume, wells)
-            protocol.delay(seconds=params["dispense_delay"])
+            protocol.comment(f"Dispensing {volume}µL to wells: {[str(w) for w in wells]}")
+            # For 8-channel pipettes, try different approaches for dispense
+            try:
+                # First try: dispense to wells list directly
+                protocol.comment("Attempting 8-channel dispense to all wells simultaneously...")
+                pipette.dispense(volume, wells)
+                protocol.comment("8-channel dispense successful")
+            except Exception as e:
+                protocol.comment(f"8-channel dispense failed, trying individual wells: {e}")
+                # Fallback: dispense to each well individually
+                for well in wells:
+                    protocol.comment(f"Dispensing to individual well: {well}")
+                    pipette.dispense(volume, well)
 
-            # Blow out
-            pipette.blow_out(wells[0].top())
+            # Apply dispense delay (capped to prevent excessive delays)
+            dispense_delay = max(
+                0.0, min(params["dispense_delay"], 2.0)
+            )  # Cap at 2 seconds, minimum 0
+            if dispense_delay > 0:
+                protocol.comment(f"Applying dispense delay: {dispense_delay} seconds")
+                protocol.delay(seconds=dispense_delay)
 
-            # Touch tip if enabled
+            # Blow out into all wells simultaneously
+            protocol.comment("Blowing out into all wells...")
+            # For 8-channel pipettes, blow out into all wells at once
+            pipette.blow_out(wells)
+
+            # Touch tip if enabled (touch tip to the wells, not to trash)
             if params["touch_tip"]:
+                protocol.comment("Touching tip to wells...")
                 pipette.touch_tip(wells)
 
         except Exception as e:
             protocol.comment(f"Error during batch dispense: {e}")
         finally:
+            protocol.comment("Dropping tip...")
             pipette.drop_tip()
 
     def simulate_batch_realistic_evaluation(wells, params, batch_idx):
@@ -523,6 +520,47 @@ def run(protocol: protocol_api.ProtocolContext):
 
         return batch_scores
 
+    def evaluate_batch_liquid_height_sim(wells, pipette, expected_height):
+        """Simulated liquid height evaluation for testing"""
+        protocol.comment(f"SIMULATION: Evaluating liquid height in batch of {len(wells)} wells")
+
+        height_statuses = []
+
+        for well in wells:
+            # Simulate liquid detection with some realistic variation
+            import random
+
+            random.seed(ord(well.well_name[0]) * 100 + int(well.well_name[1:]))
+            # 95% success rate for simulation
+            liquid_detected = random.random() < 0.95
+            height_statuses.append(liquid_detected)
+
+        return height_statuses
+
+    def evaluate_batch_bubblicity_sim(wells, pipette, expected_height):
+        """Simulated bubble detection for testing"""
+        protocol.comment(f"SIMULATION: Evaluating bubblicity in batch of {len(wells)} wells")
+
+        bubblicity_scores = []
+
+        for well_idx, well in enumerate(wells):
+            well_score = 0
+
+            # Simulate bubble detection at different heights
+            for height_increment in bubble_check_increments:
+                import random
+
+                random.seed(well_idx + int(height_increment * 10))
+                # Simulate that bubbles are more likely at higher heights
+                bubble_probability = height_increment / 2.5
+                if random.random() < bubble_probability:
+                    well_score += height_increment
+                    break
+
+            bubblicity_scores.append(well_score)
+
+        return bubblicity_scores
+
     # Main optimization loop - process wells in batches
     current_params = reference_params.copy()
     previous_params = reference_params.copy()
@@ -552,7 +590,8 @@ def run(protocol: protocol_api.ProtocolContext):
         well_start = batch_idx * BATCH_SIZE + 1
         well_end = batch_idx * BATCH_SIZE + len(batch_wells)
         protocol.comment(
-            f"\n--- BATCH {batch_idx + 1}/{len(batches)}: " f"Wells {well_start}-{well_end} ---"
+            f"\n--- BATCH {batch_idx + 1}/{len(batches)}: "
+            f"Wells {well_start}-{well_end} ---"  # noqa: E501
         )
 
         # Step 1.1: Generate parameter combination for this batch
@@ -625,21 +664,29 @@ def run(protocol: protocol_api.ProtocolContext):
             current_params = constrained_params
 
         protocol.comment(f"Current parameters: {current_params}")
+        protocol.comment(
+            f"Delay values - Aspiration: {current_params.get('aspiration_delay', 0):.2f}s, Dispense: {current_params.get('dispense_delay', 0):.2f}s"  # noqa: E501
+        )
 
         # Step 1.2: Execute batch dispense sequence
         protocol.comment("Executing batch dispense sequence...")
         execute_batch_dispense_sequence(batch_wells, pipette_1000_8ch, current_params)
 
         # Step 1.3 & 1.4: Evaluate liquid height and bubblicity for the batch
-        # Pick up one tip for batch evaluations
-        pipette_1000_8ch.pick_up_tip()
+        # Pick up one tip for batch evaluations - use testing tip rack
+        pipette_1000_8ch.pick_up_tip(tiprack_testing.wells()[batch_idx])
 
         try:
             # Step 1.3: Evaluate liquid height for batch
             protocol.comment("Evaluating liquid height for batch...")
-            height_statuses = evaluate_batch_liquid_height(
-                batch_wells, pipette_1000_8ch, expected_liquid_height
-            )
+            if USE_REAL_DETECTION:
+                height_statuses = evaluate_batch_liquid_height_real(
+                    batch_wells, pipette_1000_8ch, expected_liquid_height
+                )
+            else:
+                height_statuses = evaluate_batch_liquid_height_sim(
+                    batch_wells, pipette_1000_8ch, expected_liquid_height
+                )
 
             # Step 1.4: Evaluate bubblicity for batch (only if height checks pass)
             if not all(height_statuses):
@@ -651,12 +698,18 @@ def run(protocol: protocol_api.ProtocolContext):
                 )
                 bubblicity_scores = [1000.0 if not status else 0.0 for status in height_statuses]
             else:
-                # Use realistic simulation for evaluation
-                bubblicity_scores = simulate_batch_realistic_evaluation(
-                    batch_wells, current_params, batch_idx
-                )
+                # Use real capacitive sensing for evaluation
+                if USE_REAL_DETECTION:
+                    bubblicity_scores = evaluate_batch_bubblicity_real(
+                        batch_wells, pipette_1000_8ch, expected_liquid_height
+                    )
+                else:
+                    bubblicity_scores = evaluate_batch_bubblicity_sim(
+                        batch_wells, pipette_1000_8ch, expected_liquid_height
+                    )
                 protocol.comment(
-                    f"Simulated bubblicity scores: {[f'{s:.3f}' for s in bubblicity_scores]}"
+                    f"{'Real' if USE_REAL_DETECTION else 'Simulated'} "
+                    f"bubblicity scores: {[f'{s:.3f}' for s in bubblicity_scores]}"
                 )
 
         finally:

@@ -102,7 +102,9 @@ def get_default_liquid_params(pipette_type, liquid_type):
     return params
 
 
-def create_modified_batch_protocol(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
+def create_modified_batch_protocol(
+    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_fake_detection=True
+):
     """Create a modified batch protocol file with the specified parameters"""
 
     # Read the original batch protocol
@@ -127,6 +129,18 @@ def create_modified_batch_protocol(liquid_type="GLYCEROL_50", sample_count=96, e
     modified_content = content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"').replace(
         "default=96", f"default={sample_count}"
     )
+
+    # Set the detection flag
+    if use_fake_detection:
+        modified_content = modified_content.replace(
+            "USE_REAL_DETECTION = True  # Set to False for simulation mode",
+            "USE_REAL_DETECTION = False  # Set to False for simulation mode",
+        )
+    else:
+        modified_content = modified_content.replace(
+            "USE_REAL_DETECTION = True  # Set to False for simulation mode",
+            "USE_REAL_DETECTION = True  # Set to False for simulation mode",
+        )
 
     # If exporting, replace the liquid class imports and usage with hardcoded values
     if export_temp:
@@ -273,7 +287,9 @@ def filter_output(output):
     return "\n".join(filtered_lines)
 
 
-def run_simulation_batch(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
+def run_simulation_batch(
+    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_fake_detection=True
+):
     """Run the batch simulation with specified parameters"""
 
     print("Running 8-channel batch simulation with:")
@@ -281,6 +297,7 @@ def run_simulation_batch(liquid_type="GLYCEROL_50", sample_count=96, export_temp
     print(f"  Sample Count: {sample_count}")
     print(f"  Batch Size: 8 (fixed for 8-channel)")
     print(f"  Number of Batches: {sample_count // 8}")
+    print(f"  Detection Mode: {'Fake/Simulated' if use_fake_detection else 'Real/Capacitive'}")
     print()
 
     # Validate sample count is multiple of 8
@@ -292,7 +309,9 @@ def run_simulation_batch(liquid_type="GLYCEROL_50", sample_count=96, export_temp
         print()
 
     # Create modified protocol
-    temp_protocol = create_modified_batch_protocol(liquid_type, sample_count, export_temp)
+    temp_protocol = create_modified_batch_protocol(
+        liquid_type, sample_count, export_temp, use_fake_detection
+    )
     if not temp_protocol:
         return False
 
@@ -335,6 +354,7 @@ def main():
     liquid_type = "GLYCEROL_50"
     sample_count = 96  # Default to full plate for batch processing
     export_temp = False
+    use_fake_detection = True  # Default to fake detection for simulation
 
     # Parse command-line arguments
     args = sys.argv[1:]
@@ -343,6 +363,14 @@ def main():
     if "--export" in args:
         export_temp = True
         args.remove("--export")
+
+    # Check for detection flags
+    if "--real-detection" in args:
+        use_fake_detection = False
+        args.remove("--real-detection")
+    elif "--fake-detection" in args:
+        use_fake_detection = True
+        args.remove("--fake-detection")
 
     if len(args) > 0:
         liquid_type = args[0].upper()
@@ -381,7 +409,7 @@ def main():
         return 1
 
     # Run simulation
-    success = run_simulation_batch(liquid_type, sample_count, export_temp)
+    success = run_simulation_batch(liquid_type, sample_count, export_temp, use_fake_detection)
     return 0 if success else 1
 
 
