@@ -251,6 +251,25 @@ def run(protocol: protocol_api.ProtocolContext):
         finally:
             pipette.drop_tip()
 
+    def evaluate_column_performance(column_wells, pipette, expected_height):
+        """Evaluate all wells in a column and return average score"""
+        height_scores = []
+        bubblicity_scores = []
+
+        for well in column_wells:
+            height_status = evaluate_liquid_height(well, pipette, expected_height)
+            bubblicity_score = evaluate_bubblicity(well, pipette, expected_height)
+
+            height_scores.append(height_status)
+            bubblicity_scores.append(bubblicity_score)
+
+        # Return average or median scores
+        return {
+            "avg_height_score": sum(height_scores) / len(height_scores),
+            "avg_bubblicity_score": sum(bubblicity_scores) / len(bubblicity_scores),
+            "consistency": max(bubblicity_scores) - min(bubblicity_scores),
+        }
+
     # Main optimization loop
     current_params = reference_params.copy()
     previous_score = float("inf")
@@ -259,20 +278,22 @@ def run(protocol: protocol_api.ProtocolContext):
     num_columns = math.ceil(SAMPLE_COUNT / 8)
 
     for col_idx in range(num_columns):
-        well = test_plate.columns()[col_idx][0]  # Use first well of column for 8-channel
-        protocol.comment(f"Processing column {col_idx + 1}, well {well}")
+        column_wells = test_plate.columns()[col_idx]
+        protocol.comment(
+            f"Processing column {col_idx + 1}, wells {', '.join(str(well) for well in column_wells)}"  # noqa: E501
+        )
 
-        # Step 1.1: Determine current well parameters
+        # Step 1.1: Determine current column parameters
         if col_idx == 0:
-            # First well - use reference parameters
+            # First column - use reference parameters
             current_params = reference_params.copy()
-            protocol.comment("Using reference liquid class parameters for first well")
+            protocol.comment("Using reference liquid class parameters for first column")
         else:
             # Adjust parameters based on previous results using gradient descent
             if well_data:
                 last_result = well_data[-1]
                 adjustment_factor = calculate_gradient_adjustment(
-                    previous_score, last_result["bubblicity_score"]
+                    previous_score, last_result["avg_bubblicity_score"]
                 )
 
                 # Adjust parameters
@@ -290,35 +311,26 @@ def run(protocol: protocol_api.ProtocolContext):
         current_params = apply_constraints(current_params)
 
         # Step 1.2: Execute dispense sequence
-        execute_dispense_sequence(well, pipette_8ch_1000, current_params)
+        execute_dispense_sequence(column_wells[0], pipette_8ch_1000, current_params)
 
-        # Step 1.3: Evaluate liquid height
-        height_status = evaluate_liquid_height(well, pipette_8ch_50, expected_liquid_height)
+        # Step 1.3: Evaluate column performance
+        column_result = evaluate_column_performance(
+            column_wells, pipette_8ch_50, expected_liquid_height
+        )
 
-        # Step 1.4: Evaluate bubblicity
-        if not height_status:
-            bubblicity_score = 1000.0  # Artificially high value for failed height
-            protocol.comment("Liquid height check failed - setting high bubblicity score")
-        else:
-            bubblicity_score = evaluate_bubblicity(well, pipette_8ch_50, expected_liquid_height)
-
-        # Step 1.5: Record well data
-        well_result = {
-            "well_id": str(well),
-            "column": col_idx + 1,
-            "parameters": current_params.copy(),
-            "height_status": height_status,
-            "bubblicity_score": bubblicity_score,
-        }
-        well_data.append(well_result)
+        # Step 1.4: Record column data
+        column_result["column"] = col_idx + 1
+        column_result["parameters"] = current_params.copy()
+        well_data.append(column_result)
 
         protocol.comment(
-            f"Well {well}: Height OK: {height_status}, "
-            f"Bubblicity: {bubblicity_score:.2f}"  # noqa: E231
+            f"Column {col_idx + 1}: Avg Height OK: {column_result['avg_height_score']:.2f}, "  # noqa: E231, E501
+            f"Avg Bubblicity: {column_result['avg_bubblicity_score']:.2f}, "  # noqa: E231, E501
+            f"Consistency: {column_result['consistency']:.2f}"  # noqa: E231
         )
 
         # Update previous score for next iteration
-        previous_score = bubblicity_score
+        previous_score = column_result["avg_bubblicity_score"]
 
         # Stop if we've processed the requested number of samples
         if (col_idx + 1) * 8 >= SAMPLE_COUNT:
@@ -327,13 +339,13 @@ def run(protocol: protocol_api.ProtocolContext):
     # Find optimal parameters
     if well_data:
         # Filter successful height results and find minimum bubblicity
-        successful_results = [r for r in well_data if r["height_status"]]
+        successful_results = [r for r in well_data if r["avg_height_score"]]
 
         if successful_results:
-            optimal_result = min(successful_results, key=lambda x: x["bubblicity_score"])
-            protocol.comment(f"Optimal parameters found in {optimal_result['well_id']}")
+            optimal_result = min(successful_results, key=lambda x: x["avg_bubblicity_score"])
+            protocol.comment(f"Optimal parameters found in column {optimal_result['column']}")
             protocol.comment(
-                f"Optimal bubblicity score: {optimal_result['bubblicity_score']:.2f}"  # noqa: E231
+                f"Optimal bubblicity score: {optimal_result['avg_bubblicity_score']:.2f}"  # noqa: E231, E501
             )
             protocol.comment(f"Optimal parameters: {optimal_result['parameters']}")
         else:
