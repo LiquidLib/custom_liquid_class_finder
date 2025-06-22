@@ -1,12 +1,11 @@
 from opentrons import protocol_api, types
-import math
 from typing import List, Dict, Any
 
 metadata = {
     "protocolName": "Liquid Class Calibration with Gradient Descent",
     "author": "Roman Gurovich",
     "description": (
-        "Calibration protocol using gradient descent to optimize liquid handling parameters"
+        "Calibration protocol using gradient descent to optimize liquid handling parameters across all 96 wells"  # noqa: E501
     ),
     "source": "Roman Gurovich",
 }
@@ -24,14 +23,14 @@ def add_parameters(parameters):
         description="Number of wells to test (1-96)",
     )
     parameters.add_str(
-        display_name="8-channel pipette mount",
+        display_name="Pipette mount",
         variable_name="pipette_mount",
         choices=[
             {"display_name": "Left", "value": "left"},
             {"display_name": "Right", "value": "right"},
         ],
         default="right",
-        description="Mount position for 8-channel pipette",
+        description="Mount position for pipette",
     )
     parameters.add_str(
         display_name="Trash position",
@@ -67,16 +66,21 @@ def run(protocol: protocol_api.ProtocolContext):
     tiprack_1000 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C1")
     tiprack_50 = protocol.load_labware("opentrons_flex_96_filtertiprack_50ul", "C2")
 
+    # Additional tip racks needed for 8-channel pipettes (commented out)
+    # tiprack_1000_2 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "B1")
+    # tiprack_1000_3 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "B2")
+    # tiprack_1000_4 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "B3")
+    # tiprack_1000_5 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "A1")
+    # tiprack_1000_6 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "A2")
+    # tiprack_1000_7 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "A3")
+    # tiprack_1000_8 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C3")
+
     # Define trash container
     protocol.load_trash_bin(location=TRASH_POSITION)
 
-    # Load pipettes
-    pipette_8ch_1000 = protocol.load_instrument(
-        "flex_8channel_1000", "left", tip_racks=[tiprack_1000]
-    )
-    pipette_8ch_50 = protocol.load_instrument(
-        "flex_8channel_50", PIPETTE_MOUNT, tip_racks=[tiprack_50]
-    )
+    # Load pipettes - using single-channel for individual well processing
+    pipette_1000 = protocol.load_instrument("flex_1channel_1000", "left", tip_racks=[tiprack_1000])
+    pipette_50 = protocol.load_instrument("flex_1channel_50", PIPETTE_MOUNT, tip_racks=[tiprack_50])
 
     # Define liquid
     glycerol = protocol.define_liquid(
@@ -146,8 +150,8 @@ def run(protocol: protocol_api.ProtocolContext):
         else:
             return -0.5  # Bad direction, reverse and reduce step
 
-    def evaluate_liquid_height(well, pipette, expected_height):
-        """Evaluate if liquid is at expected height"""
+    def evaluate_liquid_height_with_tip(well, pipette, expected_height):
+        """Evaluate if liquid is at expected height (assumes tip is already attached)"""
         protocol.comment(f"Evaluating liquid height in {well}")
 
         # Move to expected height
@@ -180,8 +184,8 @@ def run(protocol: protocol_api.ProtocolContext):
         pipette.move_to(well.top(10))
         return height_status
 
-    def evaluate_bubblicity(well, pipette, expected_height):
-        """Evaluate bubble presence above liquid surface"""
+    def evaluate_bubblicity_with_tip(well, pipette, expected_height):
+        """Evaluate bubble presence above liquid surface (assumes tip is already attached)"""
         protocol.comment(f"Evaluating bubblicity in {well}")
 
         bubblicity_score = 0
@@ -219,10 +223,10 @@ def run(protocol: protocol_api.ProtocolContext):
         return bubblicity_score
 
     def execute_dispense_sequence(well, pipette, params, volume=100):
-        """Execute liquid handling with current parameters"""
+        """Execute liquid handling with current parameters targeting individual wells"""
         protocol.comment(f"Dispensing with parameters: {params}")
 
-        # Pick up tip
+        # Pick up tip - standard operation
         pipette.pick_up_tip()
 
         try:
@@ -231,11 +235,11 @@ def run(protocol: protocol_api.ProtocolContext):
             pipette.flow_rate.dispense = params["dispense_rate"]
             pipette.flow_rate.blow_out = params["blowout_rate"]
 
-            # Aspirate from reservoir
+            # Aspirate from reservoir - target specific well
             pipette.aspirate(volume, reservoir["A1"])
             protocol.delay(seconds=params["aspiration_delay"])
 
-            # Dispense into well
+            # Dispense into specific well - 8-channel will only dispense to the well we target
             pipette.dispense(volume, well)
             protocol.delay(seconds=params["dispense_delay"])
 
@@ -251,49 +255,27 @@ def run(protocol: protocol_api.ProtocolContext):
         finally:
             pipette.drop_tip()
 
-    def evaluate_column_performance(column_wells, pipette, expected_height):
-        """Evaluate all wells in a column and return average score"""
-        height_scores = []
-        bubblicity_scores = []
-
-        for well in column_wells:
-            height_status = evaluate_liquid_height(well, pipette, expected_height)
-            bubblicity_score = evaluate_bubblicity(well, pipette, expected_height)
-
-            height_scores.append(height_status)
-            bubblicity_scores.append(bubblicity_score)
-
-        # Return average or median scores
-        return {
-            "avg_height_score": sum(height_scores) / len(height_scores),
-            "avg_bubblicity_score": sum(bubblicity_scores) / len(bubblicity_scores),
-            "consistency": max(bubblicity_scores) - min(bubblicity_scores),
-        }
-
-    # Main optimization loop
+    # Main optimization loop - test all wells individually
     current_params = reference_params.copy()
     previous_score = float("inf")
 
-    # Calculate number of columns for 8-channel pipette
-    num_columns = math.ceil(SAMPLE_COUNT / 8)
+    # Get all wells to test
+    test_wells = test_plate.wells()[:SAMPLE_COUNT]
 
-    for col_idx in range(num_columns):
-        column_wells = test_plate.columns()[col_idx]
-        protocol.comment(
-            f"Processing column {col_idx + 1}, wells {', '.join(str(well) for well in column_wells)}"  # noqa: E501
-        )
+    for well_idx, well in enumerate(test_wells):
+        protocol.comment(f"Processing well {well_idx + 1}/{SAMPLE_COUNT}: {well}")
 
-        # Step 1.1: Determine current column parameters
-        if col_idx == 0:
-            # First column - use reference parameters
+        # Step 1.1: Generate parameter combination for this well
+        if well_idx == 0:
+            # First well - use reference parameters
             current_params = reference_params.copy()
-            protocol.comment("Using reference liquid class parameters for first column")
+            protocol.comment("Using reference liquid class parameters for first well")
         else:
             # Adjust parameters based on previous results using gradient descent
             if well_data:
                 last_result = well_data[-1]
                 adjustment_factor = calculate_gradient_adjustment(
-                    previous_score, last_result["avg_bubblicity_score"]
+                    previous_score, last_result["bubblicity_score"]
                 )
 
                 # Adjust parameters
@@ -307,47 +289,72 @@ def run(protocol: protocol_api.ProtocolContext):
                     adjustment_factor * gradient_step["aspiration_withdrawal_rate"]
                 )
 
-        # Apply constraints
-        current_params = apply_constraints(current_params)
+            # Apply constraints
+            current_params = apply_constraints(current_params)
 
-        # Step 1.2: Execute dispense sequence
-        execute_dispense_sequence(column_wells[0], pipette_8ch_1000, current_params)
+        # Step 1.2: Execute dispense sequence targeting individual well
+        execute_dispense_sequence(well, pipette_1000, current_params)
 
-        # Step 1.3: Evaluate column performance
-        column_result = evaluate_column_performance(
-            column_wells, pipette_8ch_50, expected_liquid_height
-        )
+        # Step 1.3 & 1.4: Evaluate liquid height and bubblicity using the same tip
+        # Pick up one tip for both evaluations
+        pipette_50.pick_up_tip()
 
-        # Step 1.4: Record column data
-        column_result["column"] = col_idx + 1
-        column_result["parameters"] = current_params.copy()
-        well_data.append(column_result)
+        try:
+            # Step 1.3: Evaluate liquid height targeting individual well
+            height_status = evaluate_liquid_height_with_tip(
+                well, pipette_50, expected_liquid_height
+            )
+
+            # Step 1.4: Evaluate bubblicity targeting individual well (only if height check passes)
+            if not height_status:
+                bubblicity_score = 1000.0  # Artificially high value for failed height
+                protocol.comment("Liquid height check failed - setting high bubblicity score")
+            else:
+                bubblicity_score = evaluate_bubblicity_with_tip(
+                    well, pipette_50, expected_liquid_height
+                )
+
+        finally:
+            # Drop the tip after both evaluations
+            pipette_50.drop_tip()
+
+        # Step 1.5: Record well data
+        well_result = {
+            "well_id": str(well),
+            "well_index": well_idx,
+            "parameters": current_params.copy(),
+            "height_status": height_status,
+            "bubblicity_score": bubblicity_score,
+        }
+        well_data.append(well_result)
 
         protocol.comment(
-            f"Column {col_idx + 1}: Avg Height OK: {column_result['avg_height_score']:.2f}, "  # noqa: E231, E501
-            f"Avg Bubblicity: {column_result['avg_bubblicity_score']:.2f}, "  # noqa: E231, E501
-            f"Consistency: {column_result['consistency']:.2f}"  # noqa: E231
+            f"Well {well}: Height OK: {height_status}, "
+            f"Bubblicity: {bubblicity_score:.2f}"  # noqa: E231
         )
 
         # Update previous score for next iteration
-        previous_score = column_result["avg_bubblicity_score"]
-
-        # Stop if we've processed the requested number of samples
-        if (col_idx + 1) * 8 >= SAMPLE_COUNT:
-            break
+        previous_score = bubblicity_score
 
     # Find optimal parameters
     if well_data:
         # Filter successful height results and find minimum bubblicity
-        successful_results = [r for r in well_data if r["avg_height_score"]]
+        successful_results = [r for r in well_data if r["height_status"]]
 
         if successful_results:
-            optimal_result = min(successful_results, key=lambda x: x["avg_bubblicity_score"])
-            protocol.comment(f"Optimal parameters found in column {optimal_result['column']}")
+            optimal_result = min(successful_results, key=lambda x: x["bubblicity_score"])
+            protocol.comment(f"Optimal parameters found in {optimal_result['well_id']}")
             protocol.comment(
-                f"Optimal bubblicity score: {optimal_result['avg_bubblicity_score']:.2f}"  # noqa: E231, E501
+                f"Optimal bubblicity score: {optimal_result['bubblicity_score']:.2f}"  # noqa: E231
             )
             protocol.comment(f"Optimal parameters: {optimal_result['parameters']}")
+
+            # Additional analysis
+            protocol.comment(f"Total wells tested: {len(well_data)}")
+            protocol.comment(f"Successful height checks: {len(successful_results)}")
+            protocol.comment(
+                f"Success rate: {len(successful_results)/len(well_data)*100:.1f}%"  # noqa: E231, E501
+            )
         else:
             protocol.comment("No successful liquid height results found")
 
