@@ -26,6 +26,13 @@ An intelligent Opentrons protocol that automatically optimizes liquid handling p
 - **Scalable** to different liquids and conditions
 - **Centralized parameter management** for easy sharing and version control
 
+
+## Videos
+
+Building a protocol on the fly: https://youtu.be/1eq2PzjPmS4
+
+Robot executing the protocol: https://youtube.com/shorts/S0IKX-X8dYI
+
 ## Overview
 
 This protocol solves a critical problem in automated liquid handling: **optimizing liquid class parameters for viscous liquids**. Traditional manual calibration is time-consuming and error-prone. This protocol uses machine learning principles (gradient descent) to automatically find the best parameters through systematic testing.
