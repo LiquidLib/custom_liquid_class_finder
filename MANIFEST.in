@@ -1,0 +1,22 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+include pyproject.toml
+include .flake8
+include Makefile
+
+recursive-include liquids *.py
+recursive-include liquids *.csv
+recursive-include tests *.py
+
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
+recursive-exclude * .git*
+recursive-exclude * .venv
+recursive-exclude * venv
+recursive-exclude * .mypy_cache
+recursive-exclude * .pytest_cache
+recursive-exclude * htmlcov
+recursive-exclude * .coverage
