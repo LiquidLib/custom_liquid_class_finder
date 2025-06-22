@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code quality tools (black, flake8, mypy)
 - Pre-commit hooks for code quality
 
-## [0.1.0] - 2024-01-XX
+## [0.1.0] - 2025-06-22
 
 ### Added
 - Initial release
