@@ -13,45 +13,8 @@ if protocol_dir not in sys.path:
 from opentrons import protocol_api, types
 from typing import List, Dict, Any, Optional
 
-# Try to import liquid classes, with fallback if not available
-try:
-    from liquid_classes import get_liquid_class_params, PipetteType, LiquidType
-
-    LIQUID_CLASSES_AVAILABLE = True
-except ImportError:
-    # Fallback: define basic enums and functions if module not available
-    from enum import Enum
-
-    class FallbackPipetteType(Enum):
-        P1000 = "P1000"
-        P300 = "P300"
-        P50 = "P50"
-
-    class FallbackLiquidType(Enum):
-        GLYCEROL_99 = "Glycerol 99%"
-        WATER = "Water"
-        DMSO = "DMSO"
-        ETHANOL = "Ethanol"
-
-    def get_liquid_class_params_fallback(pipette: Any, liquid: Any) -> Optional[Dict[str, float]]:
-        """Fallback function that returns default parameters"""
-        if pipette == FallbackPipetteType.P1000 and liquid == FallbackLiquidType.GLYCEROL_99:
-            return {
-                "aspiration_rate": 41.175,
-                "aspiration_delay": 20.0,
-                "aspiration_withdrawal_rate": 4.0,
-                "dispense_rate": 19.215,
-                "dispense_delay": 20.0,
-                "blowout_rate": 5.0,
-                "touch_tip": False,
-            }
-        return None
-
-    # Use fallback types when main module is not available
-    PipetteType = FallbackPipetteType  # type: ignore
-    LiquidType = FallbackLiquidType  # type: ignore
-    get_liquid_class_params = get_liquid_class_params_fallback  # type: ignore
-    LIQUID_CLASSES_AVAILABLE = False
+# Import liquid classes
+from liquid_classes import get_liquid_class_params, PipetteType, LiquidType, LiquidClassParams
 
 metadata = {
     "protocolName": "Liquid Class Calibration with Gradient Descent",
@@ -63,6 +26,74 @@ metadata = {
 }
 
 requirements = {"robotType": "Flex", "apiLevel": "2.22"}
+
+
+def get_default_liquid_class_params(pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:
+    """Get default liquid class parameters for combinations not in the registry"""
+    
+    # Default parameters based on pipette type
+    if pipette == PipetteType.P1000:
+        base_params = {
+            "aspiration_rate": 150.0,
+            "aspiration_delay": 1.0,
+            "aspiration_withdrawal_rate": 5.0,
+            "dispense_rate": 150.0,
+            "dispense_delay": 1.0,
+            "blowout_rate": 100.0,
+            "touch_tip": True,
+        }
+    elif pipette == PipetteType.P300:
+        base_params = {
+            "aspiration_rate": 50.0,
+            "aspiration_delay": 1.0,
+            "aspiration_withdrawal_rate": 5.0,
+            "dispense_rate": 50.0,
+            "dispense_delay": 1.0,
+            "blowout_rate": 10.0,
+            "touch_tip": True,
+        }
+    elif pipette == PipetteType.P50:
+        base_params = {
+            "aspiration_rate": 10.0,
+            "aspiration_delay": 1.0,
+            "aspiration_withdrawal_rate": 5.0,
+            "dispense_rate": 10.0,
+            "dispense_delay": 1.0,
+            "blowout_rate": 5.0,
+            "touch_tip": True,
+        }
+    else:  # P20
+        base_params = {
+            "aspiration_rate": 5.0,
+            "aspiration_delay": 1.0,
+            "aspiration_withdrawal_rate": 5.0,
+            "dispense_rate": 5.0,
+            "dispense_delay": 1.0,
+            "blowout_rate": 1.0,
+            "touch_tip": True,
+        }
+    
+    # Adjust parameters based on liquid type
+    if liquid == LiquidType.WATER:
+        # Water is easy to handle
+        pass
+    elif liquid == LiquidType.DMSO:
+        # DMSO is volatile, reduce rates
+        base_params["aspiration_rate"] *= 0.7
+        base_params["dispense_rate"] *= 0.7
+        base_params["blowout_rate"] *= 0.5
+    elif liquid == LiquidType.ETHANOL:
+        # Ethanol is volatile, reduce rates further
+        base_params["aspiration_rate"] *= 0.5
+        base_params["dispense_rate"] *= 0.5
+        base_params["blowout_rate"] *= 0.3
+        base_params["touch_tip"] = True
+    
+    return LiquidClassParams(
+        pipette=pipette,
+        liquid=liquid,
+        **base_params
+    )
 
 
 def add_parameters(parameters):
@@ -108,7 +139,14 @@ def add_parameters(parameters):
         display_name="Liquid type",
         variable_name="liquid_type",
         choices=[
+            {"display_name": "Glycerol 10%", "value": "GLYCEROL_10"},
+            {"display_name": "Glycerol 50%", "value": "GLYCEROL_50"},
+            {"display_name": "Glycerol 90%", "value": "GLYCEROL_90"},
             {"display_name": "Glycerol 99%", "value": "GLYCEROL_99"},
+            {"display_name": "PEG 8000 50% w/v", "value": "PEG_8000_50"},
+            {"display_name": "Sanitizer 62% Alcohol", "value": "SANITIZER_62_ALCOHOL"},
+            {"display_name": "Tween 20 100%", "value": "TWEEN_20_100"},
+            {"display_name": "Engine oil 100%", "value": "ENGINE_OIL_100"},
             {"display_name": "Water", "value": "WATER"},
             {"display_name": "DMSO", "value": "DMSO"},
             {"display_name": "Ethanol", "value": "ETHANOL"},
@@ -120,9 +158,10 @@ def add_parameters(parameters):
         display_name="Pipette type",
         variable_name="pipette_type",
         choices=[
-            {"display_name": "P1000", "value": "P1000"},
-            {"display_name": "P300", "value": "P300"},
+            {"display_name": "P20", "value": "P20"},
             {"display_name": "P50", "value": "P50"},
+            {"display_name": "P300", "value": "P300"},
+            {"display_name": "P1000", "value": "P1000"},
         ],
         default="P1000",
         description="Type of pipette to calibrate",
@@ -162,40 +201,41 @@ def run(protocol: protocol_api.ProtocolContext):
     # Get liquid class parameters from registry
     liquid_class_params = get_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)
 
-    reference_params: Dict[str, Any]
     if liquid_class_params is None:
         protocol.comment(
-            f"Warning: No liquid class parameters found for {PIPETTE_TYPE.value} "
-            f"and {LIQUID_TYPE.value}"
+            f"No liquid class parameters found for {PIPETTE_TYPE.value} "
+            f"and {LIQUID_TYPE.value}, using default parameters"
         )
-        protocol.comment("Using default parameters")
-        # Fallback to default parameters
-        reference_params = {
-            "aspiration_rate": 150.0,  # µL/s
-            "aspiration_delay": 1.0,  # s
-            "aspiration_withdrawal_rate": 5.0,  # mm/s
-            "dispense_rate": 150.0,  # µL/s
-            "dispense_delay": 1.0,  # s
-            "blowout_rate": 100.0,  # µL/s
-            "touch_tip": True,
-        }
+        liquid_class_params = get_default_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)
     else:
         protocol.comment(
             f"Using liquid class parameters for {PIPETTE_TYPE.value} and {LIQUID_TYPE.value}"
         )
-        # Always convert to dict for consistency
-        if LIQUID_CLASSES_AVAILABLE and hasattr(liquid_class_params, "to_dict"):
-            reference_params = liquid_class_params.to_dict()
-        else:
-            reference_params = dict(liquid_class_params)  # type: ignore
+
+    # Convert to dictionary for consistency
+    reference_params = liquid_class_params.to_dict()
 
     # Define liquid based on liquid type
     liquid_name = LIQUID_TYPE.value
     liquid_description = f"Calibration liquid for {liquid_name}"
     liquid_color = "#FFD700"  # Default gold color
 
-    if LIQUID_TYPE == LiquidType.GLYCEROL_99:
-        liquid_color = "#FFD700"  # Gold for glycerol
+    if LIQUID_TYPE == LiquidType.GLYCEROL_10:
+        liquid_color = "#FFE4B5"  # Light gold for 10% glycerol
+    elif LIQUID_TYPE == LiquidType.GLYCEROL_50:
+        liquid_color = "#FFD700"  # Gold for 50% glycerol
+    elif LIQUID_TYPE == LiquidType.GLYCEROL_90:
+        liquid_color = "#FFA500"  # Orange for 90% glycerol
+    elif LIQUID_TYPE == LiquidType.GLYCEROL_99:
+        liquid_color = "#FF8C00"  # Dark orange for 99% glycerol
+    elif LIQUID_TYPE == LiquidType.PEG_8000_50:
+        liquid_color = "#DDA0DD"  # Plum for PEG
+    elif LIQUID_TYPE == LiquidType.SANITIZER_62_ALCOHOL:
+        liquid_color = "#98FB98"  # Pale green for sanitizer
+    elif LIQUID_TYPE == LiquidType.TWEEN_20_100:
+        liquid_color = "#F0E68C"  # Khaki for Tween
+    elif LIQUID_TYPE == LiquidType.ENGINE_OIL_100:
+        liquid_color = "#2F4F4F"  # Dark slate gray for engine oil
     elif LIQUID_TYPE == LiquidType.WATER:
         liquid_color = "#87CEEB"  # Sky blue for water
     elif LIQUID_TYPE == LiquidType.DMSO:
@@ -230,6 +270,13 @@ def run(protocol: protocol_api.ProtocolContext):
         "blowout_rate": 5.0,
     }
 
+    # Learning rate and optimization parameters
+    initial_learning_rate = 0.1
+    learning_rate_decay = 0.95
+    min_learning_rate = 0.01
+    convergence_threshold = 0.1
+    patience = 5  # Number of iterations without improvement before reducing learning rate
+
     # Detection parameters
     expected_liquid_height = 2.0  # mm from bottom
     bubble_check_increments = [0.5, 1.0, 1.5, 2.0, 2.5]  # mm above expected height
@@ -243,6 +290,7 @@ def run(protocol: protocol_api.ProtocolContext):
 
     # Data storage
     well_data: List[Dict[str, Any]] = []
+    optimization_history: List[Dict[str, Any]] = []
 
     def apply_constraints(params):
         """Apply parameter constraints"""
@@ -252,12 +300,38 @@ def run(protocol: protocol_api.ProtocolContext):
                 constrained_params[param] = max(min_val, min(max_val, constrained_params[param]))
         return constrained_params
 
-    def calculate_gradient_adjustment(previous_score, current_score):
-        """Simple gradient descent adjustment"""
-        if current_score < previous_score:
-            return 1.0  # Good direction, continue
-        else:
-            return -0.5  # Bad direction, reverse and reduce step
+    def calculate_gradient_direction(previous_score, current_score, previous_params, current_params):
+        """Calculate gradient direction for each parameter"""
+        if previous_score == float('inf'):
+            return {param: 0.0 for param in gradient_step.keys()}
+        
+        # Calculate gradient for each parameter
+        gradients = {}
+        for param in gradient_step.keys():
+            if param in previous_params and param in current_params:
+                param_change = current_params[param] - previous_params[param]
+                if abs(param_change) > 1e-6:  # Avoid division by zero
+                    # Gradient is negative of score change divided by parameter change
+                    score_change = current_score - previous_score
+                    gradients[param] = -score_change / param_change
+                else:
+                    gradients[param] = 0.0
+            else:
+                gradients[param] = 0.0
+        
+        return gradients
+
+    def update_parameters_with_gradient(current_params, gradients, learning_rate):
+        """Update parameters using calculated gradients"""
+        updated_params = current_params.copy()
+        
+        for param, gradient in gradients.items():
+            if param in updated_params:
+                # Apply gradient with learning rate and step size
+                step = learning_rate * gradient_step[param] * gradient
+                updated_params[param] += step
+        
+        return updated_params
 
     def evaluate_liquid_height_with_tip(well, pipette, expected_height):
         """Evaluate if liquid is at expected height (assumes tip is already attached)"""
@@ -364,9 +438,51 @@ def run(protocol: protocol_api.ProtocolContext):
         finally:
             pipette.drop_tip()
 
+    def simulate_realistic_evaluation(well, params, well_idx):
+        """Simulate realistic evaluation results based on parameters and well position"""
+        # Base score that varies with parameters
+        base_score = 0.0
+        
+        # Parameter effects on score (simulated)
+        # Lower aspiration rate generally better for bubble reduction
+        aspiration_factor = max(0.1, 1.0 - (params["aspiration_rate"] - 50) / 450)
+        base_score += (1.0 - aspiration_factor) * 2.0
+        
+        # Lower dispense rate generally better
+        dispense_factor = max(0.1, 1.0 - (params["dispense_rate"] - 50) / 450)
+        base_score += (1.0 - dispense_factor) * 2.0
+        
+        # Moderate blowout rate is optimal
+        blowout_optimal = 50.0
+        blowout_factor = 1.0 - abs(params["blowout_rate"] - blowout_optimal) / blowout_optimal
+        base_score += (1.0 - max(0, blowout_factor)) * 1.5
+        
+        # Delays can help but too much is bad
+        delay_factor = min(1.0, (params["aspiration_delay"] + params["dispense_delay"]) / 2.0)
+        base_score += delay_factor * 0.5
+        
+        # Add some randomness and well position effects
+        import random
+        random.seed(well_idx)  # Consistent randomness per well
+        noise = random.uniform(-0.5, 0.5)
+        
+        # Well position effects (edges vs center)
+        well_row = ord(well.well_name[0]) - ord('A')
+        well_col = int(well.well_name[1:]) - 1
+        edge_factor = abs(well_row - 3.5) + abs(well_col - 3.5)  # Distance from center
+        edge_penalty = edge_factor * 0.1
+        
+        final_score = max(0.0, base_score + noise + edge_penalty)
+        return final_score
+
     # Main optimization loop - test all wells individually
     current_params = reference_params.copy()
+    previous_params = reference_params.copy()
     previous_score = float("inf")
+    best_score = float("inf")
+    best_params = reference_params.copy()
+    learning_rate = initial_learning_rate
+    no_improvement_count = 0
 
     # Get all wells to test
     test_wells = test_plate.wells()[:SAMPLE_COUNT]
@@ -380,23 +496,34 @@ def run(protocol: protocol_api.ProtocolContext):
             current_params = reference_params.copy()
             protocol.comment("Using reference liquid class parameters for first well")
         else:
-            # Adjust parameters based on previous results using gradient descent
-            if well_data:
+            # Use gradient descent to update parameters
+            if len(well_data) >= 2:  # Need at least 2 data points for gradient
                 last_result = well_data[-1]
-                adjustment_factor = calculate_gradient_adjustment(
-                    previous_score, last_result["bubblicity_score"]
+                second_last_result = well_data[-2]
+                
+                # Calculate gradients based on last two results
+                gradients = calculate_gradient_direction(
+                    second_last_result["bubblicity_score"],
+                    last_result["bubblicity_score"],
+                    second_last_result["parameters"],
+                    last_result["parameters"]
                 )
-
-                # Adjust parameters
-                for param in ["aspiration_rate", "dispense_rate", "blowout_rate"]:
-                    current_params[param] += adjustment_factor * gradient_step[param]
-
-                for param in ["aspiration_delay", "dispense_delay"]:
-                    current_params[param] += adjustment_factor * gradient_step[param] * 0.1
-
-                current_params["aspiration_withdrawal_rate"] += (
-                    adjustment_factor * gradient_step["aspiration_withdrawal_rate"]
+                
+                # Update parameters using gradients
+                current_params = update_parameters_with_gradient(
+                    last_result["parameters"], gradients, learning_rate
                 )
+                
+                protocol.comment(f"Learning rate: {learning_rate:.4f}")
+                protocol.comment(f"Gradients: {gradients}")
+            else:
+                # For second well, make small random adjustments to explore
+                current_params = previous_params.copy()
+                for param in gradient_step.keys():
+                    if param in current_params:
+                        # Small random adjustment (±10% of step size)
+                        adjustment = (well_idx - 1) * gradient_step[param] * 0.1
+                        current_params[param] += adjustment
 
             # Apply constraints
             current_params = apply_constraints(current_params)
@@ -437,12 +564,38 @@ def run(protocol: protocol_api.ProtocolContext):
         }
         well_data.append(well_result)
 
+        # Track optimization progress
+        if height_status and bubblicity_score < best_score:
+            best_score = bubblicity_score
+            best_params = current_params.copy()
+            no_improvement_count = 0
+            protocol.comment(f"New best score: {best_score:.2f}")
+        else:
+            no_improvement_count += 1
+
+        # Learning rate decay
+        if no_improvement_count >= patience:
+            learning_rate = max(min_learning_rate, learning_rate * learning_rate_decay)
+            no_improvement_count = 0
+            protocol.comment(f"Reducing learning rate to: {learning_rate:.4f}")
+
         protocol.comment(
             f"Well {well}: Height OK: {height_status}, "
-            f"Bubblicity: {bubblicity_score:.2f}"  # noqa: E231
+            f"Bubblicity: {bubblicity_score:.2f}, "
+            f"Best so far: {best_score:.2f}"  # noqa: E231
         )
 
-        # Update previous score for next iteration
+        # Store optimization history
+        optimization_history.append({
+            "iteration": well_idx,
+            "learning_rate": learning_rate,
+            "current_score": bubblicity_score,
+            "best_score": best_score,
+            "no_improvement_count": no_improvement_count
+        })
+
+        # Update for next iteration
+        previous_params = current_params.copy()
         previous_score = bubblicity_score
 
     # Find optimal parameters
@@ -451,6 +604,7 @@ def run(protocol: protocol_api.ProtocolContext):
         successful_results = [r for r in well_data if r["height_status"]]
 
         if successful_results:
+            # Use the best parameters found during optimization
             optimal_result = min(successful_results, key=lambda x: x["bubblicity_score"])
             protocol.comment(f"Optimal parameters found in {optimal_result['well_id']}")
             protocol.comment(
@@ -464,6 +618,29 @@ def run(protocol: protocol_api.ProtocolContext):
             protocol.comment(
                 f"Success rate: {len(successful_results)/len(well_data)*100:.1f}%"  # noqa: E231, E501
             )
+            
+            # Optimization statistics
+            if optimization_history:
+                final_learning_rate = optimization_history[-1]["learning_rate"]
+                best_score_found = optimization_history[-1]["best_score"]
+                protocol.comment(f"Final learning rate: {final_learning_rate:.4f}")
+                protocol.comment(f"Best score achieved: {best_score_found:.2f}")
+                
+                # Show improvement over iterations
+                if len(optimization_history) > 1:
+                    initial_score = optimization_history[0]["current_score"]
+                    improvement = initial_score - best_score_found
+                    protocol.comment(f"Total improvement: {improvement:.2f}")
+                    
+                    # Show convergence analysis
+                    recent_scores = [h["current_score"] for h in optimization_history[-5:]]
+                    if len(recent_scores) >= 2:
+                        score_variance = sum((s - sum(recent_scores)/len(recent_scores))**2 for s in recent_scores) / len(recent_scores)
+                        protocol.comment(f"Recent score variance: {score_variance:.4f}")
+                        if score_variance < convergence_threshold:
+                            protocol.comment("Algorithm appears to have converged")
+                        else:
+                            protocol.comment("Algorithm may need more iterations to converge")
         else:
             protocol.comment("No successful liquid height results found")
 
