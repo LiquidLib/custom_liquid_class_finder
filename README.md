@@ -60,7 +60,7 @@ The project now includes a **Liquid Class Configuration System** that provides:
   - `opentrons_flex_96_filtertiprack_50ul` (50µL tips)
 - **Pipettes**:
   - **Single-Channel Mode**: `flex_1channel_1000` (1000µL), `flex_1channel_50` (50µL)
-  - **Batch Mode**: `flex_8channel_1000` (8-channel 1000µL)
+  - **8-Channel Mode**: `flex_8channel_1000` (8-channel 1000µL)
 
 ## Quick Start
 
@@ -73,7 +73,7 @@ The `run_simulation.py` script is your **go-to tool** for testing protocols with
 - **⚡ Fast Iteration**: Quickly iterate through parameter combinations to find optimal settings
 - **💾 Export Capability**: Save generated protocols for use on physical Opentrons machines
 
-#### **Quick Simulation Examples**
+#### **Single-Channel Simulation Examples**
 
 ```bash
 # Test with default parameters (GLYCEROL_50, 8 samples)
@@ -89,73 +89,72 @@ python run_simulation.py GLYCEROL_90 16
 python run_simulation.py GLYCEROL_99 96 --export
 ```
 
-#### **Available Liquid Types**
+### **🔄 8-Channel Mode with 8-Channel Pipettes**
 
-```bash
-# Test any of these liquid types:
-GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99
-PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100
-ENGINE_OIL_100, WATER, DMSO, ETHANOL
-```
-
-### **🔄 Batch Mode with 8-Channel Pipettes**
-
-The `run_simulation_batch.py` script provides **high-throughput batch processing** using 8-channel pipettes for efficient liquid handling:
+The same `run_simulation.py` script also provides **high-throughput 8-channel processing** using 8-channel pipettes for efficient liquid handling:
 
 - **⚡ 8-Channel Efficiency**: Process 8 wells simultaneously for faster throughput
-- **🎯 Batch Optimization**: Optimize parameters across multiple wells in parallel
+- **🎯 8-Channel Optimization**: Optimize parameters across multiple wells in parallel
 - **🔍 Detection Modes**: Choose between real capacitive sensing or simulated detection
-- **📊 Batch Analysis**: Comprehensive analysis of channel-to-channel consistency
+- **📊 8-Channel Analysis**: Comprehensive analysis of channel-to-channel consistency
 
-#### **Batch Simulation Examples**
+#### **8-Channel Simulation Examples**
 
 ```bash
-# Default batch simulation (fake detection, 96 samples)
-python run_simulation_batch.py
+# Default 8-channel simulation (fake detection, 8 samples)
+python run_simulation.py --8channel
 
-# Batch with specific liquid and sample count
-python run_simulation_batch.py GLYCEROL_99 24
+# 8-Channel with specific liquid and sample count
+python run_simulation.py GLYCEROL_99 24 --8channel
 
 # Use real capacitive detection (for physical robot testing)
-python run_simulation_batch.py GLYCEROL_99 24 --real-detection
+python run_simulation.py GLYCEROL_99 24 --8channel --export
 
-# Explicit fake detection (for simulation testing)
-python run_simulation_batch.py GLYCEROL_99 24 --fake-detection
-
-# Export batch protocol for physical use
-python run_simulation_batch.py GLYCEROL_99 96 --export --real-detection
+# Export 8-channel protocol for physical use
+python run_simulation.py GLYCEROL_99 96 --8channel --export
 ```
 
 #### **Detection Modes**
 
-**Fake Detection (Default for Simulation)**:
+**Simulated Detection (Default)**:
 - ✅ Fast simulation with 95% success rate
 - ✅ Good for testing optimization algorithms
 - ✅ No real sensor data required
 - ✅ Consistent results for development
 
-**Real Detection**:
+**Real Detection (with --export)**:
 - 🔬 Uses actual capacitive tip sensing
 - 🔬 `pipette.aspirate(0)` for liquid detection
 - 🔬 Realistic sensor-based evaluation
 - 🔬 Best for physical robot deployment
 
-#### **Batch Mode Features**
+#### **Mode Features**
 
-- **Fixed Batch Size**: 8 wells per batch (optimized for 8-channel pipettes)
-- **Gradient Descent**: Optimizes parameters across batches
-- **Channel Consistency**: Analyzes variation between channels
-- **Learning Rate Decay**: Adaptive optimization with patience mechanism
-- **Comprehensive Logging**: Detailed batch-by-batch progress tracking
+**Single-Channel Mode**:
+- **Individual Well Processing**: Process wells one at a time
+- **Gradient Descent**: Optimizes parameters using gradient-based learning
+- **Detailed Logging**: Comprehensive well-by-well progress tracking
+
+**8-Channel Mode**:
+- **Fixed 8-Channel Size**: 8 wells per operation (optimized for 8-channel pipettes)
+- **Gradient Descent**: Optimizes parameters across 8-channel operations
+- **Comprehensive Logging**: Detailed 8-channel-by-8-channel progress tracking
 
 ### **Basic Protocol Usage**
 
-1. **Load the Protocol**: Upload `protocol.py` to your Opentrons App
-2. **Configure Parameters**: Set liquid type, pipette type, and other parameters
-3. **Prepare Labware**: Ensure all required labware is loaded and positioned
-4. **Add Liquid**: Load 15mL of your chosen liquid in reservoir position A1
-5. **Run Protocol**: Execute the protocol and monitor progress
-6. **Review Results**: Check the protocol comments for optimal parameters
+#### **Single-Channel Mode** (`protocol.py`)
+- **Pipettes**: Single-channel 1000µL (dispensing + evaluation)
+- **Processing**: Individual wells sequentially
+- **Use Case**: Precise optimization with detailed per-well analysis
+- **Detection**: Real capacitive sensing or simulated detection
+- **Simulation**: Use `run_simulation.py` (default mode)
+
+#### **8-Channel Mode** (`protocol_8channel_single.py`)
+- **Pipettes**: 8-channel 1000µL (dispensing + evaluation)
+- **Processing**: 8 wells simultaneously in 8-channel operations
+- **Use Case**: High-throughput optimization with channel consistency analysis
+- **Detection**: Real capacitive sensing or simulated detection
+- **Simulation**: Use `run_simulation.py --8channel`
 
 ### **Liquid Class System**
 
@@ -224,12 +223,12 @@ The system supports two distinct operational modes:
 - **Use Case**: Precise parameter optimization for individual wells
 - **Simulation**: Use `run_simulation.py`
 
-#### **Batch Mode** (`protocol_batch.py`)
+#### **8-Channel Mode** (`protocol_8channel.py`)
 - **Pipettes**: 8-channel 1000µL (dispensing + evaluation)
-- **Processing**: 8 wells simultaneously in batches
+- **Processing**: 8 wells simultaneously in 8-channel operations
 - **Use Case**: High-throughput optimization with channel consistency analysis
 - **Detection**: Real capacitive sensing or simulated detection
-- **Simulation**: Use `run_simulation_batch.py`
+- **Simulation**: Use `run_simulation.py`
 
 ### 1. **Setup & Configuration**
 The protocol loads:
@@ -327,7 +326,7 @@ The protocol uses a simplified gradient descent approach:
 
 ### **Detection System**
 
-The batch mode includes a sophisticated detection system with two modes:
+The 8-channel mode includes a sophisticated detection system with two modes:
 
 #### **Real Detection Mode**
 - **Capacitive Sensing**: Uses `pipette.aspirate(0)` to detect liquid presence
@@ -477,10 +476,9 @@ The project follows these style guidelines:
 ```
 liquid-class-finder/
 ├── protocol.py              # Main single-channel protocol file
-├── protocol_batch.py        # 8-channel batch protocol file
+├── protocol_8channel_single.py  # 8-channel protocol file
 ├── protocol_env.py          # Environment-based protocol
-├── run_simulation.py        # 🚀 Single-channel simulation & testing tool
-├── run_simulation_batch.py  # 🔄 8-channel batch simulation & testing tool
+├── run_simulation.py        # 🚀 Unified simulation & testing tool (single + 8-channel)
 ├── liquids/                 # Liquid class system
 │   ├── liquid_classes.py        # Core liquid class system
 │   ├── liquid_class_manager.py  # Command-line management utility

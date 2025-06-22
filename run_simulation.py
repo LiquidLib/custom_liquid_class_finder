@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import os
 from pathlib import Path
+import argparse
 
 
 def get_liquid_class_params_from_module(liquid_type, pipette_type="P1000"):
@@ -102,7 +103,9 @@ def get_default_liquid_params(pipette_type, liquid_type):
     return params
 
 
-def create_modified_protocol(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
+def create_modified_protocol(
+    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_real_detection=False
+):
     """Create a modified protocol file with the specified parameters"""
 
     # Read the original protocol
@@ -127,6 +130,18 @@ def create_modified_protocol(liquid_type="GLYCEROL_50", sample_count=96, export_
     modified_content = content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"').replace(
         "default=96", f"default={sample_count}"
     )
+
+    # Set the detection flag based on use_real_detection parameter
+    if use_real_detection:
+        modified_content = modified_content.replace(
+            "USE_REAL_DETECTION = False  # Set to False for simulation mode",
+            "USE_REAL_DETECTION = True  # Set to True for real detection",
+        )
+    else:
+        modified_content = modified_content.replace(
+            "USE_REAL_DETECTION = True  # Set to False for simulation mode",
+            "USE_REAL_DETECTION = False  # Set to False for simulation mode",
+        )
 
     # If exporting, replace the liquid class imports and usage with hardcoded values
     if export_temp:
@@ -279,10 +294,16 @@ def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False
     print("Running simulation with:")
     print(f"  Liquid Type: {liquid_type}")
     print(f"  Sample Count: {sample_count}")
+    print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
     print()
 
+    # Use real detection when exporting
+    use_real_detection = export_temp
+
     # Create modified protocol
-    temp_protocol = create_modified_protocol(liquid_type, sample_count, export_temp)
+    temp_protocol = create_modified_protocol(
+        liquid_type, sample_count, export_temp, use_real_detection
+    )
     if not temp_protocol:
         return False
 
@@ -318,33 +339,118 @@ def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False
             print(f"\nTemporary protocol file exported to: {temp_protocol}")
 
 
+def create_modified_8channel_protocol(
+    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_real_detection=False
+):
+    """Create a modified 8channel protocol file with the specified parameters"""
+    protocol_path = Path("protocol_8channel_single.py")
+    if not protocol_path.exists():
+        print("Error: protocol_8channel_single.py not found")
+        return None
+    with open(protocol_path, "r") as f:
+        content = f.read()
+    if export_temp:
+        output_filename = f"protocol_8channel_single_{liquid_type}_{sample_count}samples.py"
+        temp_file = open(output_filename, "w")
+    else:
+        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
+    modified_content = content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"').replace(
+        "default=96", f"default={sample_count}"
+    )
+
+    # Set the detection flag based on use_real_detection parameter
+    if use_real_detection:
+        modified_content = modified_content.replace(
+            "USE_REAL_DETECTION = False  # Set to False for simulation mode",
+            "USE_REAL_DETECTION = True  # Set to True for real detection",
+        )
+    else:
+        modified_content = modified_content.replace(
+            "USE_REAL_DETECTION = True  # Set to False for simulation mode",
+            "USE_REAL_DETECTION = False  # Set to False for simulation mode",
+        )
+
+    temp_file.write(modified_content)
+    temp_file.close()
+    return temp_file.name
+
+
+def run_simulation_8channel(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
+    """Run the 8channel simulation with specified parameters"""
+    print("Running 8-channel simulation with:")
+    print(f"  Liquid Type: {liquid_type}")
+    print(f"  Sample Count: {sample_count}")
+    print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
+    print()
+
+    # Use real detection when exporting
+    use_real_detection = export_temp
+
+    temp_protocol = create_modified_8channel_protocol(
+        liquid_type, sample_count, export_temp, use_real_detection
+    )
+    if not temp_protocol:
+        return False
+    try:
+        result = subprocess.run(
+            ["opentrons_simulate", temp_protocol], capture_output=True, text=True
+        )
+        if result.stdout:
+            filtered_stdout = filter_output(result.stdout)
+            if filtered_stdout.strip():
+                print("Simulation Output:")
+                print(filtered_stdout)
+        if result.stderr:
+            filtered_stderr = filter_output(result.stderr)
+            if filtered_stderr.strip():
+                print("Simulation Errors:")
+                print(filtered_stderr)
+        return result.returncode == 0
+    finally:
+        if not export_temp:
+            try:
+                os.unlink(temp_protocol)
+            except OSError:
+                pass
+        else:
+            print(f"\nTemporary 8channel protocol file exported to: {temp_protocol}")
+
+
 def main():
     """Main function to handle command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Run Opentrons protocol simulation in single or 8-channel mode."
+    )
+    parser.add_argument(
+        "liquid_type",
+        nargs="?",
+        default="GLYCEROL_50",
+        help="Liquid type (default: GLYCEROL_50)",
+    )
+    parser.add_argument(
+        "sample_count",
+        nargs="?",
+        type=int,
+        default=8,
+        help="Sample count (default: 8)",
+    )
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        help="Export the generated protocol file instead of deleting it",
+    )
+    parser.add_argument(
+        "--8channel",
+        action="store_true",
+        help="Run simulation in 8-channel mode (default: single-channel)",
+    )
+    args = parser.parse_args()
 
-    # Default values
-    liquid_type = "GLYCEROL_50"
-    sample_count = 8
-    export_temp = False
+    liquid_type = args.liquid_type.upper()
+    sample_count = args.sample_count
+    export_temp = args.export
+    mode_8channel = args.__dict__["8channel"]
 
-    # Parse command-line arguments
-    args = sys.argv[1:]
-
-    # Check for export flag
-    if "--export" in args:
-        export_temp = True
-        args.remove("--export")
-
-    if len(args) > 0:
-        liquid_type = args[0].upper()
-
-    if len(args) > 1:
-        try:
-            sample_count = int(args[1])
-        except ValueError:
-            print("Error: Sample count must be a number")
-            return 1
-
-    # Validate liquid type
     valid_liquids = [
         "GLYCEROL_10",
         "GLYCEROL_50",
@@ -361,14 +467,14 @@ def main():
     if liquid_type not in valid_liquids:
         print(f"Error: Invalid liquid type. Choose from: {', '.join(valid_liquids)}")
         return 1
-
-    # Validate sample count
     if sample_count < 1 or sample_count > 96:
         print("Error: Sample count must be between 1 and 96")
         return 1
 
-    # Run simulation
-    success = run_simulation(liquid_type, sample_count, export_temp)
+    if mode_8channel:
+        success = run_simulation_8channel(liquid_type, sample_count, export_temp)
+    else:
+        success = run_simulation(liquid_type, sample_count, export_temp)
     return 0 if success else 1
 
 

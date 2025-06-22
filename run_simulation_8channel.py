@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Wrapper script to run Opentrons simulation with command-line arguments for 8-channel batch protocol
+Wrapper script to run Opentrons simulation with command-line arguments for 8-channel protocol
 """
 
 import sys
@@ -102,15 +102,15 @@ def get_default_liquid_params(pipette_type, liquid_type):
     return params
 
 
-def create_modified_batch_protocol(
+def create_modified_8channel_protocol(
     liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_fake_detection=True
 ):
-    """Create a modified batch protocol file with the specified parameters"""
+    """Create a modified 8channel protocol file with the specified parameters"""
 
-    # Read the original batch protocol
-    protocol_path = Path("protocol_batch.py")
+    # Read the original 8channel protocol
+    protocol_path = Path("protocol_8channel_single.py")
     if not protocol_path.exists():
-        print("Error: protocol_batch.py not found")
+        print("Error: protocol_8channel_single.py not found")
         return None
 
     with open(protocol_path, "r") as f:
@@ -119,7 +119,7 @@ def create_modified_batch_protocol(
     # Create a file with modified parameters
     if export_temp:
         # Create in current directory with descriptive name
-        output_filename = f"protocol_batch_{liquid_type}_{sample_count}samples.py"
+        output_filename = f"protocol_8channel_single_{liquid_type}_{sample_count}samples.py"
         temp_file = open(output_filename, "w")
     else:
         # Create temporary file in system temp directory
@@ -165,7 +165,7 @@ def get_hardcoded_liquid_class_params():
     }}
 
 def get_default_liquid_class_params(pipette, liquid):
-    """Simplified default liquid class parameters for exported batch protocol"""
+    """Simplified default liquid class parameters for exported 8channel protocol"""
     # Return the hardcoded parameters since we don't need the complex logic
     return get_hardcoded_liquid_class_params()
 '''
@@ -287,29 +287,19 @@ def filter_output(output):
     return "\n".join(filtered_lines)
 
 
-def run_simulation_batch(
+def run_simulation_8channel(
     liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_fake_detection=True
 ):
-    """Run the batch simulation with specified parameters"""
+    """Run the 8channel simulation with specified parameters"""
 
-    print("Running 8-channel batch simulation with:")
+    print("Running 8-channel simulation with:")
     print(f"  Liquid Type: {liquid_type}")
     print(f"  Sample Count: {sample_count}")
-    print(f"  Batch Size: 8 (fixed for 8-channel)")
-    print(f"  Number of Batches: {sample_count // 8}")
     print(f"  Detection Mode: {'Fake/Simulated' if use_fake_detection else 'Real/Capacitive'}")
     print()
 
-    # Validate sample count is multiple of 8
-    if sample_count % 8 != 0:
-        adjusted_count = (sample_count // 8) * 8
-        print(f"Warning: Sample count {sample_count} is not a multiple of 8.")
-        print(f"Adjusting to {adjusted_count} samples ({adjusted_count // 8} batches)")
-        sample_count = adjusted_count
-        print()
-
     # Create modified protocol
-    temp_protocol = create_modified_batch_protocol(
+    temp_protocol = create_modified_8channel_protocol(
         liquid_type, sample_count, export_temp, use_fake_detection
     )
     if not temp_protocol:
@@ -344,7 +334,7 @@ def run_simulation_batch(
             except OSError:
                 pass
         else:
-            print(f"\nTemporary batch protocol file exported to: {temp_protocol}")
+            print(f"\nTemporary 8channel protocol file exported to: {temp_protocol}")
 
 
 def main():
@@ -352,7 +342,7 @@ def main():
 
     # Default values
     liquid_type = "GLYCEROL_50"
-    sample_count = 96  # Default to full plate for batch processing
+    sample_count = 96  # Default to full plate for 8channel processing
     export_temp = False
     use_fake_detection = True  # Default to fake detection for simulation
 
@@ -402,14 +392,14 @@ def main():
 
     # Validate sample count
     if sample_count < 8:
-        print("Error: Sample count must be at least 8 for 8-channel batch processing")
+        print("Error: Sample count must be at least 8 for 8-channel processing")
         return 1
     if sample_count > 96:
         print("Error: Sample count must be at most 96")
         return 1
 
     # Run simulation
-    success = run_simulation_batch(liquid_type, sample_count, export_temp, use_fake_detection)
+    success = run_simulation_8channel(liquid_type, sample_count, export_temp, use_fake_detection)
     return 0 if success else 1
 
 

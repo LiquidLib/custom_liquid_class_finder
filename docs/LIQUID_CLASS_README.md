@@ -274,7 +274,7 @@ This will show all available liquid classes and demonstrate functionality.
 - **Parameter Validation**: Automatic bounds checking
 - **Liquid Properties**: Viscosity, surface tension, density
 - **Temperature Dependencies**: Temperature-based parameter adjustment
-- **Batch Operations**: Bulk import/export operations
+- **8-Channel Operations**: Bulk import/export operations
 - **Web Interface**: GUI for parameter management
 
 ### Extension Points
