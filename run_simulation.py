@@ -370,6 +370,121 @@ def create_modified_8channel_protocol(
             "USE_REAL_DETECTION = False  # Set to False for simulation mode",
         )
 
+    # If exporting, replace the liquid class imports and usage with hardcoded values
+    if export_temp:
+        # Get the liquid class parameters by evaluating the module
+        liquid_params = get_liquid_class_params_from_module(liquid_type)
+
+        if liquid_params:
+            # Create a hardcoded liquid class function
+            hardcoded_function = f'''
+# flake8: noqa: E272,E202
+
+def get_hardcoded_liquid_class_params():
+    """Hardcoded liquid class parameters for {liquid_type}"""
+    return {{
+        "aspiration_rate": {liquid_params["aspiration_rate"]},
+        "aspiration_delay": {liquid_params["aspiration_delay"]},
+        "aspiration_withdrawal_rate": {liquid_params["aspiration_withdrawal_rate"]},
+        "dispense_rate": {liquid_params["dispense_rate"]},
+        "dispense_delay": {liquid_params["dispense_delay"]},
+        "blowout_rate": {liquid_params["blowout_rate"]},
+        "touch_tip": {liquid_params["touch_tip"]}
+    }}
+
+def get_default_liquid_class_params(pipette, liquid):
+    """Simplified default liquid class parameters for exported protocol"""
+    # Return the hardcoded parameters since we don't need the complex logic
+    return get_hardcoded_liquid_class_params()
+'''
+
+            # Remove the liquid class imports
+            import_string = (
+                "from liquids.liquid_classes import (\n"
+                "    get_liquid_class_params,\n"
+                "    PipetteType,\n"
+                "    LiquidType,\n"
+                "    LiquidClassParams,\n"
+                ")"
+            )
+            modified_content = modified_content.replace(
+                import_string,
+                "# Liquid class imports removed - using hardcoded values",
+            )
+
+            # Add the hardcoded function after the imports section
+            import_end = modified_content.find("metadata = {")
+            if import_end != -1:
+                modified_content = (
+                    modified_content[:import_end]
+                    + hardcoded_function
+                    + "\n\n"
+                    + modified_content[import_end:]
+                )
+
+            # Replace the liquid type conversion in the run function
+            modified_content = modified_content.replace(
+                "LIQUID_TYPE = LiquidType[protocol.params.liquid_type]  # type: ignore",
+                f"LIQUID_TYPE = '{liquid_type}'  # Hardcoded liquid type",
+            )
+
+            # Replace the pipette type conversion
+            modified_content = modified_content.replace(
+                "PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore",
+                "PIPETTE_TYPE = 'P1000'  # Hardcoded pipette type",
+            )
+
+            # Replace the get_liquid_class_params call with the hardcoded function
+            modified_content = modified_content.replace(
+                "get_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)",
+                "get_hardcoded_liquid_class_params()",
+            )
+
+            # Replace references to .value attributes since we're using strings now
+            modified_content = modified_content.replace("PIPETTE_TYPE.value", "PIPETTE_TYPE")
+            modified_content = modified_content.replace("LIQUID_TYPE.value", "LIQUID_TYPE")
+
+            # Replace the .to_dict() call since we're returning a dict directly
+            modified_content = modified_content.replace(
+                "liquid_class_params.to_dict()", "liquid_class_params"
+            )
+
+            # Replace the original get_default_liquid_class_params function
+            # Find the start and end of the original function
+            original_func_start = modified_content.find(
+                "def get_default_liquid_class_params("
+                "pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:"
+            )
+            if original_func_start != -1:
+                # Find the end of the function (next function definition)
+                next_func_start = modified_content.find("def ", original_func_start + 1)
+                if next_func_start != -1:
+                    # Replace the entire original function
+                    modified_content = (
+                        modified_content[:original_func_start] + modified_content[next_func_start:]
+                    )
+                else:
+                    # If no next function, just remove from start to end of file
+                    modified_content = modified_content[:original_func_start]
+
+    # Replace enum comparisons with string comparisons
+    for liquid in [
+        "GLYCEROL_10",
+        "GLYCEROL_50",
+        "GLYCEROL_90",
+        "GLYCEROL_99",
+        "PEG_8000_50",
+        "SANITIZER_62_ALCOHOL",
+        "TWEEN_20_100",
+        "ENGINE_OIL_100",
+        "WATER",
+        "DMSO",
+        "ETHANOL",
+    ]:
+        modified_content = modified_content.replace(
+            f"LIQUID_TYPE == LiquidType.{liquid}", f"LIQUID_TYPE == '{liquid}'"
+        )
+
     temp_file.write(modified_content)
     temp_file.close()
     return temp_file.name
