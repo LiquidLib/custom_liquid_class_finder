@@ -33,18 +33,42 @@ def add_parameters(parameters):
         default="right",
         description="Mount position for 8-channel pipette",
     )
+    parameters.add_str(
+        display_name="Trash position",
+        variable_name="trash_position",
+        choices=[
+            {"display_name": "A1", "value": "A1"},
+            {"display_name": "A2", "value": "A2"},
+            {"display_name": "A3", "value": "A3"},
+            {"display_name": "B1", "value": "B1"},
+            {"display_name": "B2", "value": "B2"},
+            {"display_name": "B3", "value": "B3"},
+            {"display_name": "C1", "value": "C1"},
+            {"display_name": "C2", "value": "C2"},
+            {"display_name": "C3", "value": "C3"},
+            {"display_name": "D1", "value": "D1"},
+            {"display_name": "D2", "value": "D2"},
+            {"display_name": "D3", "value": "D3"},
+        ],
+        default="A3",
+        description="Deck position for trash container",
+    )
 
 
 def run(protocol: protocol_api.ProtocolContext):
     # Access runtime parameters
     SAMPLE_COUNT = protocol.params.sample_count
     PIPETTE_MOUNT = protocol.params.pipette_mount
+    TRASH_POSITION = protocol.params.trash_position
 
     # Load labware
     reservoir = protocol.load_labware("nest_12_reservoir_15ml", "D1")
     test_plate = protocol.load_labware("nest_96_wellplate_200ul_flat", "D2")
     tiprack_1000 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C1")
     tiprack_50 = protocol.load_labware("opentrons_flex_96_filtertiprack_50ul", "C2")
+
+    # Define trash container
+    protocol.load_trash_bin(location=TRASH_POSITION)
 
     # Load pipettes
     pipette_8ch_1000 = protocol.load_instrument(
