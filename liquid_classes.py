@@ -13,15 +13,23 @@ from enum import Enum
 class PipetteType(Enum):
     """Supported pipette types"""
 
-    P1000 = "P1000"
-    P300 = "P300"
+    P20 = "P20"
     P50 = "P50"
+    P300 = "P300"
+    P1000 = "P1000"
 
 
 class LiquidType(Enum):
     """Supported liquid types"""
 
+    GLYCEROL_10 = "Glycerol 10%"
+    GLYCEROL_50 = "Glycerol 50%"
+    GLYCEROL_90 = "Glycerol 90%"
     GLYCEROL_99 = "Glycerol 99%"
+    PEG_8000_50 = "PEG 8000 50% w/v"
+    SANITIZER_62_ALCOHOL = "Sanitizer 62% Alcohol"
+    TWEEN_20_100 = "Tween 20 100%"
+    ENGINE_OIL_100 = "Engine oil 100%"
     WATER = "Water"
     DMSO = "DMSO"
     ETHANOL = "Ethanol"
@@ -72,8 +80,214 @@ class LiquidClassRegistry:
     def _initialize_default_classes(self):
         """Initialize with default liquid class parameters"""
 
-        # Reference liquid class from user data
-        glycerol_p1000 = LiquidClassParams(
+        # P20 liquid classes
+        p20_glycerol_10 = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.GLYCEROL_10,
+            aspiration_rate=6.804,
+            aspiration_delay=2.0,
+            aspiration_withdrawal_rate=5.0,
+            dispense_rate=6.804,
+            dispense_delay=2.0,
+            blowout_rate=0.5,
+            touch_tip=False,
+        )
+
+        p20_glycerol_90 = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.GLYCEROL_90,
+            aspiration_rate=5.292,
+            aspiration_delay=7.0,
+            aspiration_withdrawal_rate=2.0,
+            dispense_rate=5.292,
+            dispense_delay=7.0,
+            blowout_rate=0.5,
+            touch_tip=False,
+        )
+
+        p20_glycerol_99 = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.GLYCEROL_99,
+            aspiration_rate=3.78,
+            aspiration_delay=10.0,
+            aspiration_withdrawal_rate=2.0,
+            dispense_rate=3.78,
+            dispense_delay=10.0,
+            blowout_rate=0.5,
+            touch_tip=False,
+        )
+
+        p20_peg_8000_50 = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.PEG_8000_50,
+            aspiration_rate=6.048,
+            aspiration_delay=7.0,
+            aspiration_withdrawal_rate=5.0,
+            dispense_rate=6.048,
+            dispense_delay=7.0,
+            blowout_rate=0.5,
+            touch_tip=False,
+        )
+
+        p20_sanitizer_62_alcohol = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.SANITIZER_62_ALCOHOL,
+            aspiration_rate=1.0,
+            aspiration_delay=2.0,
+            aspiration_withdrawal_rate=20.0,
+            dispense_rate=3.78,
+            dispense_delay=2.0,
+            blowout_rate=0.5,
+            touch_tip=True,
+        )
+
+        p20_tween_20_100 = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.TWEEN_20_100,
+            aspiration_rate=5.292,
+            aspiration_delay=7.0,
+            aspiration_withdrawal_rate=2.0,
+            dispense_rate=3.024,
+            dispense_delay=7.0,
+            blowout_rate=0.5,
+            touch_tip=True,
+        )
+
+        p20_engine_oil_100 = LiquidClassParams(
+            pipette=PipetteType.P20,
+            liquid=LiquidType.ENGINE_OIL_100,
+            aspiration_rate=6.048,
+            aspiration_delay=7.0,
+            aspiration_withdrawal_rate=1.0,
+            dispense_rate=6.048,
+            dispense_delay=7.0,
+            blowout_rate=0.5,
+            touch_tip=True,
+        )
+
+        # P300 liquid classes
+        p300_glycerol_10 = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.GLYCEROL_10,
+            aspiration_rate=83.25,
+            aspiration_delay=2.0,
+            aspiration_withdrawal_rate=5.0,
+            dispense_rate=83.25,
+            dispense_delay=2.0,
+            blowout_rate=10.0,
+            touch_tip=False,
+        )
+
+        p300_glycerol_90 = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.GLYCEROL_90,
+            aspiration_rate=64.75,
+            aspiration_delay=8.0,
+            aspiration_withdrawal_rate=1.0,
+            dispense_rate=64.75,
+            dispense_delay=8.0,
+            blowout_rate=4.0,
+            touch_tip=False,
+        )
+
+        p300_glycerol_99 = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.GLYCEROL_99,
+            aspiration_rate=55.5,
+            aspiration_delay=10.0,
+            aspiration_withdrawal_rate=1.0,
+            dispense_rate=55.5,
+            dispense_delay=10.0,
+            blowout_rate=4.0,
+            touch_tip=False,
+        )
+
+        p300_peg_8000_50 = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.PEG_8000_50,
+            aspiration_rate=74.0,
+            aspiration_delay=6.0,
+            aspiration_withdrawal_rate=4.0,
+            dispense_rate=74.0,
+            dispense_delay=74.0,
+            blowout_rate=4.0,
+            touch_tip=False,
+        )
+
+        p300_sanitizer_62_alcohol = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.SANITIZER_62_ALCOHOL,
+            aspiration_rate=92.5,
+            aspiration_delay=2.0,
+            aspiration_withdrawal_rate=20.0,
+            dispense_rate=92.5,
+            dispense_delay=2.0,
+            blowout_rate=4.0,
+            touch_tip=True,
+        )
+
+        p300_tween_20_100 = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.TWEEN_20_100,
+            aspiration_rate=13.9,
+            aspiration_delay=10.0,
+            aspiration_withdrawal_rate=1.0,
+            dispense_rate=13.9,
+            dispense_delay=11.0,
+            blowout_rate=7.0,
+            touch_tip=True,
+        )
+
+        p300_engine_oil_100 = LiquidClassParams(
+            pipette=PipetteType.P300,
+            liquid=LiquidType.ENGINE_OIL_100,
+            aspiration_rate=74.0,
+            aspiration_delay=3.0,
+            aspiration_withdrawal_rate=2.0,
+            dispense_rate=46.25,
+            dispense_delay=7.0,
+            blowout_rate=10.0,
+            touch_tip=True,
+        )
+
+        # P1000 liquid classes
+        p1000_glycerol_10 = LiquidClassParams(
+            pipette=PipetteType.P1000,
+            liquid=LiquidType.GLYCEROL_10,
+            aspiration_rate=247.05,
+            aspiration_delay=2.0,
+            aspiration_withdrawal_rate=30.0,
+            dispense_rate=247.05,
+            dispense_delay=2.0,
+            blowout_rate=75.0,
+            touch_tip=False,
+        )
+
+        p1000_glycerol_50 = LiquidClassParams(
+            pipette=PipetteType.P1000,
+            liquid=LiquidType.GLYCEROL_50,
+            aspiration_rate=247.05,
+            aspiration_delay=3.0,
+            aspiration_withdrawal_rate=30.0,
+            dispense_rate=247.05,
+            dispense_delay=3.0,
+            blowout_rate=75.0,
+            touch_tip=False,
+        )
+
+        p1000_glycerol_90 = LiquidClassParams(
+            pipette=PipetteType.P1000,
+            liquid=LiquidType.GLYCEROL_90,
+            aspiration_rate=164.7,
+            aspiration_delay=10.0,
+            aspiration_withdrawal_rate=3.0,
+            dispense_rate=109.8,
+            dispense_delay=10.0,
+            blowout_rate=15.0,
+            touch_tip=False,
+        )
+
+        p1000_glycerol_99 = LiquidClassParams(
             pipette=PipetteType.P1000,
             liquid=LiquidType.GLYCEROL_99,
             aspiration_rate=41.175,
@@ -85,22 +299,33 @@ class LiquidClassRegistry:
             touch_tip=False,
         )
 
-        self.add_liquid_class(glycerol_p1000)
+        # Add all liquid classes to registry
+        liquid_classes = [
+            # P20 classes
+            p20_glycerol_10,
+            p20_glycerol_90,
+            p20_glycerol_99,
+            p20_peg_8000_50,
+            p20_sanitizer_62_alcohol,
+            p20_tween_20_100,
+            p20_engine_oil_100,
+            # P300 classes
+            p300_glycerol_10,
+            p300_glycerol_90,
+            p300_glycerol_99,
+            p300_peg_8000_50,
+            p300_sanitizer_62_alcohol,
+            p300_tween_20_100,
+            p300_engine_oil_100,
+            # P1000 classes
+            p1000_glycerol_10,
+            p1000_glycerol_50,
+            p1000_glycerol_90,
+            p1000_glycerol_99,
+        ]
 
-        # Add some common default liquid classes
-        water_p1000 = LiquidClassParams(
-            pipette=PipetteType.P1000,
-            liquid=LiquidType.WATER,
-            aspiration_rate=150.0,
-            aspiration_delay=1.0,
-            aspiration_withdrawal_rate=5.0,
-            dispense_rate=150.0,
-            dispense_delay=1.0,
-            blowout_rate=100.0,
-            touch_tip=True,
-        )
-
-        self.add_liquid_class(water_p1000)
+        for liquid_class in liquid_classes:
+            self.add_liquid_class(liquid_class)
 
     def add_liquid_class(self, liquid_class: LiquidClassParams):
         """Add a liquid class to the registry"""

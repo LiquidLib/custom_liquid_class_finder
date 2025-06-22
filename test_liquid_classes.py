@@ -185,6 +185,60 @@ def run_demo():
     print("Demo completed successfully!")
 
 
+def test_liquid_classes():
+    """Test that all expected liquid classes are available"""
+
+    # Expected combinations from the CSV data
+    expected_combinations = [
+        (PipetteType.P20, LiquidType.GLYCEROL_10),
+        (PipetteType.P20, LiquidType.GLYCEROL_90),
+        (PipetteType.P20, LiquidType.GLYCEROL_99),
+        (PipetteType.P20, LiquidType.PEG_8000_50),
+        (PipetteType.P20, LiquidType.SANITIZER_62_ALCOHOL),
+        (PipetteType.P20, LiquidType.TWEEN_20_100),
+        (PipetteType.P20, LiquidType.ENGINE_OIL_100),
+        (PipetteType.P300, LiquidType.GLYCEROL_10),
+        (PipetteType.P300, LiquidType.GLYCEROL_90),
+        (PipetteType.P300, LiquidType.GLYCEROL_99),
+        (PipetteType.P300, LiquidType.PEG_8000_50),
+        (PipetteType.P300, LiquidType.SANITIZER_62_ALCOHOL),
+        (PipetteType.P300, LiquidType.TWEEN_20_100),
+        (PipetteType.P300, LiquidType.ENGINE_OIL_100),
+        (PipetteType.P1000, LiquidType.GLYCEROL_10),
+        (PipetteType.P1000, LiquidType.GLYCEROL_50),
+        (PipetteType.P1000, LiquidType.GLYCEROL_90),
+        (PipetteType.P1000, LiquidType.GLYCEROL_99),
+    ]
+
+    print("Testing liquid class availability...")
+    print("=" * 50)
+
+    all_found = True
+    for pipette, liquid in expected_combinations:
+        liquid_class = liquid_class_registry.get_liquid_class(pipette, liquid)
+        if liquid_class:
+            print(f"✓ {pipette.value} + {liquid.value}")
+        else:
+            print(f"✗ {pipette.value} + {liquid.value} - NOT FOUND")
+            all_found = False
+
+    print("=" * 50)
+    if all_found:
+        print("✓ All expected liquid classes are available!")
+    else:
+        print("✗ Some liquid classes are missing!")
+
+    # Print total count
+    all_classes = liquid_class_registry.list_liquid_classes()
+    print(f"\nTotal liquid classes in registry: {len(all_classes)}")
+
+    # Export to CSV to verify format
+    print("\nExporting to CSV format:")
+    print("-" * 50)
+    csv_export = liquid_class_registry.export_csv()
+    print(csv_export)
+
+
 if __name__ == "__main__":
     # Run the demo
     run_demo()
@@ -192,3 +246,6 @@ if __name__ == "__main__":
     # Run the tests
     print("\n=== Running Tests ===")
     unittest.main(argv=[""], exit=False, verbosity=2)
+
+    # Test liquid classes
+    test_liquid_classes()
