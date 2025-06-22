@@ -9,6 +9,23 @@ An intelligent Opentrons protocol that automatically optimizes liquid handling p
 
 **NEW: Liquid Class Configuration System** - Now includes a comprehensive system for managing liquid handling parameters with CSV import/export and seamless protocol integration.
 
+## Why This Matters
+
+### **Problem Solved**
+- **Viscous liquids** like glycerol are notoriously difficult to handle accurately
+- **Bubble formation** can ruin experiments and waste expensive reagents
+- **Manual optimization** of liquid class parameters is time-consuming and error-prone
+- **Inconsistent results** from manual calibration
+- **Parameter management** across different liquids and pipettes
+
+### **Benefits**
+- **Automated optimization** ensures consistent, reproducible results
+- **Systematic approach** eliminates human bias and error
+- **Time savings** compared to manual trial-and-error
+- **Better performance** through data-driven parameter selection
+- **Scalable** to different liquids and conditions
+- **Centralized parameter management** for easy sharing and version control
+
 ## Overview
 
 This protocol solves a critical problem in automated liquid handling: **optimizing liquid class parameters for viscous liquids**. Traditional manual calibration is time-consuming and error-prone. This protocol uses machine learning principles (gradient descent) to automatically find the best parameters through systematic testing.
@@ -32,7 +49,95 @@ The project now includes a **Liquid Class Configuration System** that provides:
 - 🎛️ **Configurable Liquids**: Support for multiple liquid types and pipettes
 - 🚀 **Simulation Testing**: Built-in simulation tool for rapid parameter testing and protocol generation
 
-## Your Reference Data
+## Requirements
+
+- **Robot Type**: Opentrons Flex
+- **API Level**: 2.22
+- **Labware**:
+  - `nest_12_reservoir_15ml` (reservoir)
+  - `nest_96_wellplate_200ul_flat` (test plate)
+  - `opentrons_flex_96_filtertiprack_1000ul` (1000µL tips)
+  - `opentrons_flex_96_filtertiprack_50ul` (50µL tips)
+- **Pipettes**:
+  - `flex_1channel_1000` (single-channel 1000µL)
+  - `flex_1channel_50` (single-channel 50µL)
+
+## Quick Start
+
+### **🚀 Protocol Simulation & Testing**
+
+The `run_simulation.py` script is your **go-to tool** for testing protocols with different parameters before running them on physical machines. This is especially valuable for:
+
+- **🧪 Rapid Parameter Testing**: Test different liquid types and sample counts without physical setup
+- **🔧 Protocol Generation**: Generate customized protocol files for physical robot deployment
+- **⚡ Fast Iteration**: Quickly iterate through parameter combinations to find optimal settings
+- **💾 Export Capability**: Save generated protocols for use on physical Opentrons machines
+
+#### **Quick Simulation Examples**
+
+```bash
+# Test with default parameters (GLYCEROL_50, 8 samples)
+python run_simulation.py
+
+# Test with specific liquid type
+python run_simulation.py GLYCEROL_99
+
+# Test with specific liquid and sample count
+python run_simulation.py GLYCEROL_90 16
+
+# Generate a protocol file for physical machine use
+python run_simulation.py GLYCEROL_99 96 --export
+```
+
+#### **Available Liquid Types**
+
+```bash
+# Test any of these liquid types:
+GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99
+PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100
+ENGINE_OIL_100, WATER, DMSO, ETHANOL
+```
+
+### **Basic Protocol Usage**
+
+1. **Load the Protocol**: Upload `protocol.py` to your Opentrons App
+2. **Configure Parameters**: Set liquid type, pipette type, and other parameters
+3. **Prepare Labware**: Ensure all required labware is loaded and positioned
+4. **Add Liquid**: Load 15mL of your chosen liquid in reservoir position A1
+5. **Run Protocol**: Execute the protocol and monitor progress
+6. **Review Results**: Check the protocol comments for optimal parameters
+
+### **Liquid Class System**
+
+The liquid class system provides centralized parameter management:
+
+#### **Quick Start with Liquid Classes**
+
+```python
+from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+
+# Get your reference data
+params = get_liquid_class_params(PipetteType.P1000, LiquidType.GLYCEROL_99)
+print(f"Aspiration Rate: {params.aspiration_rate} µL/s")  # 41.175
+```
+
+#### **Command Line Management**
+
+```bash
+# List all liquid classes
+python -m liquids.liquid_class_manager list
+
+# Show your reference data
+python -m liquids.liquid_class_manager show P1000 "Glycerol 99%"
+
+# Export to CSV
+python -m liquids.liquid_class_manager export my_liquid_classes.csv
+
+# Import from CSV
+python -m liquids.liquid_class_manager import my_liquid_classes.csv
+```
+
+#### **Your Reference Data**
 
 The system comes pre-configured with your optimized glycerol parameters:
 
@@ -46,6 +151,16 @@ P1000,Glycerol 99%,41.175,20,4,19.215,20,5.0,No
 - **Aspiration Delay**: 20 s (long delay for complete aspiration)
 - **Dispense Rate**: 19.215 µL/s (very slow for controlled dispensing)
 - **Touch Tip**: No (not needed for glycerol)
+
+## Configuration Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `sample_count` | Integer | 96 | Number of wells to test (1-96) |
+| `pipette_mount` | String | "right" | Mount position for pipette ("left" or "right") |
+| `trash_position` | String | "A3" | Deck position for trash container |
+| `liquid_type` | String | "GLYCEROL_99" | Type of liquid to calibrate for |
+| `pipette_type` | String | "P1000" | Type of pipette to calibrate |
 
 ## How It Works
 
@@ -108,170 +223,6 @@ For each well in the 96-well plate:
 4. **Record**: Store results with parameters used
 5. **Optimize**: Adjust parameters for next iteration based on performance
 
-## Liquid Class System
-
-### **Core Components**
-
-The liquid class system provides:
-
-- **`liquid_classes.py`**: Core system with parameter registry
-- **`liquid_class_manager.py`**: Command-line utility for management
-- **`liquid_class_demo_basic.py`**: Basic demonstration script
-- **`liquid_class_demo_custom.py`**: Comprehensive demonstration script
-- **`test_liquid_classes.py`**: Comprehensive test suite
-
-### **Supported Pipettes & Liquids**
-
-| Pipettes | Liquids |
-|----------|---------|
-| P1000 (1000 µL) | Glycerol 99% |
-| P300 (300 µL) | Water |
-| P50 (50 µL) | DMSO |
-| | Ethanol |
-
-### **Quick Start with Liquid Classes**
-
-```python
-from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
-
-# Get your reference data
-params = get_liquid_class_params(PipetteType.P1000, LiquidType.GLYCEROL_99)
-print(f"Aspiration Rate: {params.aspiration_rate} µL/s")  # 41.175
-```
-
-### **Command Line Management**
-
-```bash
-# List all liquid classes
-python -m liquids.liquid_class_manager list
-
-# Show your reference data
-python -m liquids.liquid_class_manager show P1000 "Glycerol 99%"
-
-# Export to CSV
-python -m liquids.liquid_class_manager export my_liquid_classes.csv
-
-# Import from CSV
-python -m liquids.liquid_class_manager import my_liquid_classes.csv
-```
-
-### **Protocol Integration**
-
-The updated protocol automatically:
-- Uses liquid class parameters as starting point
-- Supports multiple liquid types via parameters
-- Gracefully handles missing liquid classes
-- Defines liquids dynamically based on type
-
-## Requirements
-
-- **Robot Type**: Opentrons Flex
-- **API Level**: 2.22
-- **Labware**:
-  - `nest_12_reservoir_15ml` (reservoir)
-  - `nest_96_wellplate_200ul_flat` (test plate)
-  - `opentrons_flex_96_filtertiprack_1000ul` (1000µL tips)
-  - `opentrons_flex_96_filtertiprack_50ul` (50µL tips)
-- **Pipettes**:
-  - `flex_1channel_1000` (single-channel 1000µL)
-  - `flex_1channel_50` (single-channel 50µL)
-
-## Configuration Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `sample_count` | Integer | 96 | Number of wells to test (1-96) |
-| `pipette_mount` | String | "right" | Mount position for pipette ("left" or "right") |
-| `trash_position` | String | "A3" | Deck position for trash container |
-| `liquid_type` | String | "GLYCEROL_99" | Type of liquid to calibrate for |
-| `pipette_type` | String | "P1000" | Type of pipette to calibrate |
-
-## Usage
-
-### **Basic Protocol Usage**
-
-1. **Load the Protocol**: Upload `protocol.py` to your Opentrons App
-2. **Configure Parameters**: Set liquid type, pipette type, and other parameters
-3. **Prepare Labware**: Ensure all required labware is loaded and positioned
-4. **Add Liquid**: Load 15mL of your chosen liquid in reservoir position A1
-5. **Run Protocol**: Execute the protocol and monitor progress
-6. **Review Results**: Check the protocol comments for optimal parameters
-
-### **🚀 Protocol Simulation & Testing**
-
-The `run_simulation.py` script is your **go-to tool** for testing protocols with different parameters before running them on physical machines. This is especially valuable for:
-
-- **🧪 Rapid Parameter Testing**: Test different liquid types and sample counts without physical setup
-- **🔧 Protocol Generation**: Generate customized protocol files for physical robot deployment
-- **⚡ Fast Iteration**: Quickly iterate through parameter combinations to find optimal settings
-- **💾 Export Capability**: Save generated protocols for use on physical Opentrons machines
-
-#### **Quick Simulation Examples**
-
-```bash
-# Test with default parameters (GLYCEROL_50, 8 samples)
-python run_simulation.py
-
-# Test with specific liquid type
-python run_simulation.py GLYCEROL_99
-
-# Test with specific liquid and sample count
-python run_simulation.py GLYCEROL_90 16
-
-# Generate a protocol file for physical machine use
-python run_simulation.py GLYCEROL_99 96 --export
-```
-
-#### **Available Liquid Types**
-
-```bash
-# Test any of these liquid types:
-GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99
-PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100
-ENGINE_OIL_100, WATER, DMSO, ETHANOL
-```
-
-#### **Workflow for Physical Deployment**
-
-1. **Simulate First**: Test your parameters with `run_simulation.py`
-2. **Export Protocol**: Use `--export` flag to generate a protocol file
-3. **Deploy**: Upload the generated protocol to your physical Opentrons machine
-4. **Run**: Execute with confidence knowing parameters are tested
-
-**Example workflow:**
-```bash
-# Test parameters for glycerol 99% with 24 samples
-python run_simulation.py GLYCEROL_99 24
-
-# If results look good, generate protocol for physical machine
-python run_simulation.py GLYCEROL_99 24 --export
-# This creates: protocol_GLYCEROL_99_24samples.py
-
-# Upload protocol_GLYCEROL_99_24samples.py to your Opentrons App
-```
-
-### **Liquid Class Management**
-
-1. **View Available Classes**:
-   ```bash
-   python liquid_class_manager.py list
-   ```
-
-2. **Export Your Data**:
-   ```bash
-   python liquid_class_manager.py export my_parameters.csv
-   ```
-
-3. **Add New Liquid Class**:
-   ```bash
-   python liquid_class_manager.py add
-   ```
-
-4. **Import from CSV**:
-   ```bash
-   python liquid_class_manager.py import new_parameters.csv
-   ```
-
 ## Output
 
 The protocol provides:
@@ -291,23 +242,6 @@ Optimal parameters found in A1
 Optimal bubblicity score: 0.00
 Optimal parameters: {'aspiration_rate': 41.175, 'aspiration_delay': 20.0, ...}
 ```
-
-## Why This Matters
-
-### **Problem Solved**
-- **Viscous liquids** like glycerol are notoriously difficult to handle accurately
-- **Bubble formation** can ruin experiments and waste expensive reagents
-- **Manual optimization** of liquid class parameters is time-consuming and error-prone
-- **Inconsistent results** from manual calibration
-- **Parameter management** across different liquids and pipettes
-
-### **Benefits**
-- **Automated optimization** ensures consistent, reproducible results
-- **Systematic approach** eliminates human bias and error
-- **Time savings** compared to manual trial-and-error
-- **Better performance** through data-driven parameter selection
-- **Scalable** to different liquids and conditions
-- **Centralized parameter management** for easy sharing and version control
 
 ## Technical Details
 
@@ -522,7 +456,7 @@ For debugging liquid class system:
 
 #### **Dependencies**
 
-- **Production**: `opentrons>=6.3.0`, `opentrons-protocol-api>=2.22.0`
+- **Production**: `opentrons>=6.3.0`
 - **Development**: pytest, black, flake8, mypy, pre-commit
 
 To add new dependencies:
