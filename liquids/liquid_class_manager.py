@@ -160,14 +160,14 @@ def main():
     """Main function"""
     parser = argparse.ArgumentParser(
         description="Liquid Class Manager - Manage liquid handling parameters",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s list                                    # List all liquid classes
-  %(prog)s show P1000 "Glycerol 99%"              # Show specific liquid class
-  %(prog)s export output.csv                      # Export to CSV file
-  %(prog)s import input.csv                       # Import from CSV file
-  %(prog)s add                                     # Add new liquid class interactively
+  liquid-class-manager list                                    # List all liquid classes
+  liquid-class-manager show P1000 "Glycerol 99%"              # Show specific liquid class
+  liquid-class-manager export output.csv                      # Export to CSV file
+  liquid-class-manager import input.csv                       # Import from CSV file
+  liquid-class-manager add                                     # Add new liquid class interactively
         """,
     )
 
