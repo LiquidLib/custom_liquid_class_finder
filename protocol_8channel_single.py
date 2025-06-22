@@ -188,9 +188,9 @@ def run(protocol: protocol_api.ProtocolContext):
     PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore
 
     # Load labware
-    tiprack_1000 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "A1")
-    reservoir = protocol.load_labware("nest_12_reservoir_15ml", "C1")
-    test_plate = protocol.load_labware("nest_96_wellplate_200ul_flat", "C2")
+    tiprack_1000 = protocol.load_labware("opentrons_flex_96_tiprack_1000ul", "B1")
+    reservoir = protocol.load_labware("nest_12_reservoir_15ml", "D1")
+    test_plate = protocol.load_labware("nest_96_wellplate_200ul_flat", "D2")
 
     # Define trash container
     protocol.load_trash_bin(location=TRASH_POSITION)
@@ -205,7 +205,8 @@ def run(protocol: protocol_api.ProtocolContext):
     # Configure 8-channel pipette for single tip pickup (only first channel)
     pipette_1000_8ch.configure_nozzle_layout(
         style=SINGLE,
-        start="A1",  # Use backmost nozzle (A1) for single tip pickup - valid for 8-channel
+        start="H1",  # Use H1 nozzle for single tip pickup - valid for 8-channel
+        tip_racks=[tiprack_1000],
     )
 
     # Get liquid class parameters from registry
