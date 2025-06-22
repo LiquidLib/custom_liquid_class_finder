@@ -207,15 +207,9 @@ def run(protocol: protocol_api.ProtocolContext):
     reservoir = protocol.load_labware("nest_12_reservoir_15ml", "D1")
     test_plate = protocol.load_labware("nest_96_wellplate_200ul_flat", "D2")
 
-    # Multiple tip racks for 8-channel pipettes
-    tiprack_1000_1 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C1")
-    tiprack_1000_2 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C2")
-    tiprack_1000_3 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C3")
-    tiprack_1000_4 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "B1")
-    tiprack_1000_5 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "B2")
-    tiprack_1000_6 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "B3")
-    tiprack_1000_7 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "A1")
-    tiprack_1000_8 = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "A2")
+    # Two tip racks - one for dispensing, one for testing
+    tiprack_dispense = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C1")
+    tiprack_testing = protocol.load_labware("opentrons_flex_96_filtertiprack_1000ul", "C2")
 
     # Define trash container
     protocol.load_trash_bin(location=TRASH_POSITION)
@@ -224,16 +218,7 @@ def run(protocol: protocol_api.ProtocolContext):
     pipette_1000_8ch = protocol.load_instrument(
         "flex_8channel_1000",
         PIPETTE_MOUNT,
-        tip_racks=[
-            tiprack_1000_1,
-            tiprack_1000_2,
-            tiprack_1000_3,
-            tiprack_1000_4,
-            tiprack_1000_5,
-            tiprack_1000_6,
-            tiprack_1000_7,
-            tiprack_1000_8,
-        ],
+        tip_racks=[tiprack_dispense, tiprack_testing],
     )
 
     # Get liquid class parameters from registry
