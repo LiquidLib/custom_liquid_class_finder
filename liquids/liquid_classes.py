@@ -40,7 +40,7 @@ class LiquidClassParams:
     """Liquid class parameters for a specific pipette-liquid combination"""
 
     pipette: PipetteType
-    liquid: LiquidType
+    liquid: Any  # Accept both LiquidType and custom types
     aspiration_rate: float  # µL/s
     aspiration_delay: float  # s
     aspiration_withdrawal_rate: float  # mm/s
@@ -332,6 +332,14 @@ class LiquidClassRegistry:
         key = f"{liquid_class.pipette.value}_{liquid_class.liquid.value}"
         self._liquid_classes[key] = liquid_class
 
+    def remove_liquid_class(self, pipette: PipetteType, liquid: LiquidType) -> bool:
+        """Remove a liquid class from the registry"""
+        key = f"{pipette.value}_{liquid.value}"
+        if key in self._liquid_classes:
+            del self._liquid_classes[key]
+            return True
+        return False
+
     def get_liquid_class(
         self, pipette: PipetteType, liquid: LiquidType
     ) -> Optional[LiquidClassParams]:
@@ -391,7 +399,16 @@ class LiquidClassRegistry:
 
         try:
             pipette = PipetteType(parts[0])
-            liquid = LiquidType(parts[1])
+            try:
+                liquid: Any = LiquidType(parts[1])
+            except ValueError:
+                # Allow custom liquids
+                class CustomLiquid:
+                    def __init__(self, name):
+                        self.value = name
+                        self.name = name.upper().replace(" ", "_").replace("%", "PCT")
+
+                liquid = CustomLiquid(parts[1])
             aspiration_rate = float(parts[2])
             aspiration_delay = float(parts[3])
             aspiration_withdrawal_rate = float(parts[4])
@@ -432,6 +449,11 @@ def get_liquid_class_params(
 def add_liquid_class_params(liquid_class: LiquidClassParams):
     """Convenience function to add liquid class parameters"""
     liquid_class_registry.add_liquid_class(liquid_class)
+
+
+def remove_liquid_class_params(pipette: PipetteType, liquid: LiquidType) -> bool:
+    """Convenience function to remove liquid class parameters"""
+    return liquid_class_registry.remove_liquid_class(pipette, liquid)
 
 
 def export_liquid_classes_csv() -> str:

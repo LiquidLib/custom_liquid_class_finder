@@ -18,6 +18,7 @@ from .liquid_classes import (
     export_liquid_classes_csv,
     import_liquid_classes_from_csv,
     add_liquid_class_params,
+    remove_liquid_class_params,
 )
 
 
@@ -156,6 +157,37 @@ def add_liquid_class_interactive():
     print(f"\nLiquid class added successfully: " f"{pipette_type.value} - {liquid_type.value}")
 
 
+def delete_liquid_class(pipette: str, liquid: str):
+    """Delete a specific liquid class"""
+    try:
+        pipette_type = PipetteType(pipette)
+        liquid_type = LiquidType(liquid)
+    except ValueError as e:
+        print(f"Error: {e}")
+        print(f"Available pipettes: {[p.value for p in PipetteType]}")
+        print(f"Available liquids: {[liquid.value for liquid in LiquidType]}")
+        return
+
+    # Check if liquid class exists
+    params = get_liquid_class_params(pipette_type, liquid_type)
+    if params is None:
+        print(f"No liquid class found for {pipette} and {liquid}")
+        return
+
+    # Confirm deletion
+    confirm = input(f"Are you sure you want to delete {pipette} - {liquid}? (y/n): ").lower()
+    if confirm not in ["y", "yes"]:
+        print("Deletion cancelled.")
+        return
+
+    # Remove from registry
+    success = remove_liquid_class_params(pipette_type, liquid_type)
+    if success:
+        print(f"Liquid class {pipette} - {liquid} deleted successfully.")
+    else:
+        print(f"Failed to delete liquid class {pipette} - {liquid}.")
+
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(
@@ -192,6 +224,11 @@ Examples:
     # Add command
     subparsers.add_parser("add", help="Add new liquid class interactively")
 
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete specific liquid class")
+    delete_parser.add_argument("pipette", help="Pipette type (e.g., P1000)")
+    delete_parser.add_argument("liquid", help='Liquid type (e.g., "Glycerol 99%")')
+
     # Parse arguments
     args = parser.parse_args()
 
@@ -221,6 +258,9 @@ Examples:
 
     elif args.command == "add":
         add_liquid_class_interactive()
+
+    elif args.command == "delete":
+        delete_liquid_class(args.pipette, args.liquid)
 
 
 if __name__ == "__main__":

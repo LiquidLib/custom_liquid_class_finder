@@ -179,19 +179,43 @@ print(f"Aspiration Rate: {params.aspiration_rate} µL/s")  # 41.175
 
 #### **Command Line Management**
 
+**Standalone CLI (Recommended):**
 ```bash
 # List all liquid classes
-python -m liquids.liquid_class_manager list
+python liquid_class_manager.py list
 
 # Show your reference data
-python -m liquids.liquid_class_manager show P1000 "Glycerol 99%"
+python liquid_class_manager.py show P1000 "Glycerol 99%"
 
 # Export to CSV
-python -m liquids.liquid_class_manager export my_liquid_classes.csv
+python liquid_class_manager.py export my_liquid_classes.csv
 
 # Import from CSV
-python -m liquids.liquid_class_manager import my_liquid_classes.csv
+python liquid_class_manager.py import my_liquid_classes.csv
+
+# Add new liquid class interactively
+python liquid_class_manager.py add
+
+# Delete specific liquid class
+python liquid_class_manager.py delete P1000 "Glycerol 99%"
 ```
+
+**Package Entry Point (if installed):**
+```bash
+# List all liquid classes
+liquid-class-manager list
+
+# Show your reference data
+liquid-class-manager show P1000 "Glycerol 99%"
+
+# Export to CSV
+liquid-class-manager export my_liquid_classes.csv
+
+# Import from CSV
+liquid-class-manager import my_liquid_classes.csv
+```
+
+**📖 See [CLI_README.md](CLI_README.md) for detailed CLI documentation.**
 
 #### **Your Reference Data**
 

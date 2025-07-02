@@ -1,0 +1,240 @@
+# Liquid Class Manager CLI
+
+A comprehensive command-line interface for managing liquid class parameters for automated liquid handling protocols.
+
+## Overview
+
+The Liquid Class Manager CLI provides an easy way to manage liquid handling parameters for different pipette-liquid combinations. It supports viewing, adding, deleting, importing, and exporting liquid class data in CSV format.
+
+## Installation
+
+### Option 1: Standalone Script (Recommended)
+The CLI can be run directly without installation:
+
+```bash
+python liquid_class_manager.py [command] [options]
+```
+
+### Option 2: Installed Package
+If you have installed the package, you can use the entry point:
+
+```bash
+liquid-class-manager [command] [options]
+```
+
+## Available Commands
+
+### `list` - List All Liquid Classes
+Display all available liquid classes with their parameters.
+
+```bash
+python liquid_class_manager.py list
+```
+
+**Output Example:**
+```
+Available Liquid Classes:
+==================================================
+
+P20_Glycerol 10%:
+  Pipette: P20
+  Liquid: Glycerol 10%
+  Aspiration Rate: 6.804 µL/s
+  Aspiration Delay: 2.0 s
+  Aspiration Withdrawal Rate: 5.0 mm/s
+  Dispense Rate: 6.804 µL/s
+  Dispense Delay: 2.0 s
+  Blowout Rate: 0.5 µL/s
+  Touch Tip: False
+```
+
+### `show` - Show Specific Liquid Class
+Display parameters for a specific pipette-liquid combination.
+
+```bash
+python liquid_class_manager.py show P1000 "Glycerol 99%"
+```
+
+**Output Example:**
+```
+Liquid Class Parameters for P1000 - Glycerol 99%:
+==================================================
+Aspiration Rate: 41.175 µL/s
+Aspiration Delay: 20.0 s
+Aspiration Withdrawal Rate: 4.0 mm/s
+Dispense Rate: 19.215 µL/s
+Dispense Delay: 20.0 s
+Blowout Rate: 5.0 µL/s
+Touch Tip: False
+```
+
+### `export` - Export to CSV
+Export all liquid classes to a CSV file.
+
+```bash
+python liquid_class_manager.py export output.csv
+```
+
+**CSV Format:**
+```csv
+Pipette,Liquid,Aspiration Rate (µL/s),Aspiration Delay (s),Aspiration Withdrawal Rate (mm/s),Dispense Rate (µL/s),Dispense Delay (s),Blowout Rate (µL/s),Touch tip
+P1000,Glycerol 99%,41.175,20.0,4.0,19.215,20.0,5.0,No
+```
+
+### `import` - Import from CSV
+Import liquid classes from a CSV file.
+
+```bash
+python liquid_class_manager.py import input.csv
+```
+
+**Note:** The CSV must have the exact header format shown above.
+
+### `add` - Add New Liquid Class
+Interactively add a new liquid class.
+
+```bash
+python liquid_class_manager.py add
+```
+
+This will prompt you to:
+1. Select a pipette type (P20, P300, P1000)
+2. Select a liquid type (Glycerol 10%, Glycerol 99%, etc.)
+3. Enter all the parameters (rates, delays, etc.)
+
+### `delete` - Delete Liquid Class
+Delete a specific liquid class with confirmation.
+
+```bash
+python liquid_class_manager.py delete P1000 "Glycerol 99%"
+```
+
+## Supported Pipettes
+
+- **P20**: 20 µL pipette
+- **P300**: 300 µL pipette
+- **P1000**: 1000 µL pipette
+
+## Supported Liquids
+
+- **Glycerol 10%**: Low viscosity glycerol solution
+- **Glycerol 50%**: Medium viscosity glycerol solution
+- **Glycerol 90%**: High viscosity glycerol solution
+- **Glycerol 99%**: Very high viscosity glycerol solution
+- **PEG 8000 50% w/v**: Polyethylene glycol solution
+- **Sanitizer 62% Alcohol**: Alcohol-based sanitizer
+- **Tween 20 100%**: Surfactant solution
+- **Engine oil 100%**: High viscosity oil
+- **Water**: Standard water
+- **DMSO**: Dimethyl sulfoxide
+- **Ethanol**: Ethanol solution
+
+## Parameter Descriptions
+
+### Aspiration Parameters
+- **Aspiration Rate**: Speed of liquid uptake (µL/s)
+- **Aspiration Delay**: Time to wait after aspiration (s)
+- **Aspiration Withdrawal Rate**: Speed of pipette withdrawal (mm/s)
+
+### Dispense Parameters
+- **Dispense Rate**: Speed of liquid dispensing (µL/s)
+- **Dispense Delay**: Time to wait after dispensing (s)
+
+### Other Parameters
+- **Blowout Rate**: Speed of air blowout (µL/s)
+- **Touch Tip**: Whether to touch tip after dispensing (Yes/No)
+
+## Examples
+
+### Basic Usage
+```bash
+# List all available liquid classes
+python liquid_class_manager.py list
+
+# Show specific liquid class
+python liquid_class_manager.py show P300 "Glycerol 90%"
+
+# Export current data
+python liquid_class_manager.py export my_liquid_classes.csv
+```
+
+### Data Management
+```bash
+# Import from CSV file
+python liquid_class_manager.py import backup.csv
+
+# Add a new custom liquid class
+python liquid_class_manager.py add
+
+# Delete an unwanted liquid class
+python liquid_class_manager.py delete P20 "Engine oil 100%"
+```
+
+### Batch Operations
+```bash
+# Export, modify in spreadsheet, then re-import
+python liquid_class_manager.py export temp.csv
+# Edit temp.csv in your preferred spreadsheet application
+python liquid_class_manager.py import temp.csv
+```
+
+## Error Handling
+
+The CLI provides helpful error messages for common issues:
+
+- **Invalid pipette/liquid combinations**: Shows available options
+- **File not found**: Clear error message with file path
+- **CSV format errors**: Detailed parsing error messages
+- **Invalid numeric input**: Prompts for correct format
+
+## Integration with Protocols
+
+The liquid class data can be easily integrated into Opentrons protocols:
+
+```python
+from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+
+# Get parameters for use in protocol
+params = get_liquid_class_params(PipetteType.P1000, LiquidType.GLYCEROL_99)
+if params:
+    # Use parameters in your protocol
+    aspiration_rate = params.aspiration_rate
+    dispense_rate = params.dispense_rate
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"No liquid class found"**: The pipette-liquid combination doesn't exist
+2. **CSV import errors**: Check that your CSV has the correct header format
+3. **Permission errors**: Ensure you have write permissions for export files
+
+### Getting Help
+
+```bash
+# Show general help
+python liquid_class_manager.py --help
+
+# Show help for specific command
+python liquid_class_manager.py show --help
+```
+
+## File Locations
+
+- **Standalone script**: `liquid_class_manager.py` (in project root)
+- **Package entry point**: `liquid-class-manager` (after installation)
+- **Default data**: `liquids/liquid_classes.csv`
+
+## Contributing
+
+To add new features to the CLI:
+
+1. Modify `liquid_class_manager.py` for the standalone version
+2. Update `liquids/liquid_class_manager.py` for the package version
+3. Add corresponding tests in `tests/test_liquid_classes.py`
+4. Update this documentation
+
+## License
+
+This CLI tool is part of the Custom Liquid Class Finder project and is licensed under the MIT License.
