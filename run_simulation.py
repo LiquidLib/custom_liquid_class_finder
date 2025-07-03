@@ -48,6 +48,47 @@ def get_liquid_class_params_from_module(liquid_type, pipette_type="P1000"):
         return get_default_liquid_params(pipette_type, liquid_type)
 
 
+def parse_custom_params(custom_params_str):
+    """Parse custom liquid class parameters from command line string"""
+    if not custom_params_str:
+        return None
+
+    params = {}
+    try:
+        # Parse key=value pairs
+        for pair in custom_params_str.split(","):
+            if "=" in pair:
+                key, value = pair.strip().split("=", 1)
+                key = key.strip()
+                value = value.strip()
+
+                # Convert value to appropriate type
+                if key in [
+                    "aspiration_rate",
+                    "aspiration_delay",
+                    "aspiration_withdrawal_rate",
+                    "dispense_rate",
+                    "dispense_delay",
+                    "blowout_rate",
+                ]:
+                    params[key] = float(value)
+                elif key == "touch_tip":
+                    # Handle boolean values
+                    if value.lower() in ["true", "yes", "1", "on"]:
+                        params[key] = True
+                    elif value.lower() in ["false", "no", "0", "off"]:
+                        params[key] = False
+                    else:
+                        raise ValueError(f"Invalid boolean value for {key}: {value}")
+                else:
+                    raise ValueError(f"Unknown parameter: {key}")
+
+    except Exception as e:
+        raise ValueError(f"Error parsing custom parameters: {e}")
+
+    return params
+
+
 def get_default_liquid_params(pipette_type, liquid_type):
     """Fallback default parameters if liquid class lookup fails"""
 
@@ -104,7 +145,11 @@ def get_default_liquid_params(pipette_type, liquid_type):
 
 
 def create_modified_protocol(
-    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_real_detection=False
+    liquid_type="GLYCEROL_50",
+    sample_count=96,
+    export_temp=False,
+    use_real_detection=False,
+    custom_params=None,
 ):
     """Create a modified protocol file with the specified parameters"""
 
@@ -143,102 +188,13 @@ def create_modified_protocol(
             "USE_REAL_DETECTION = False  # Set to False for simulation mode",
         )
 
-    # If exporting, replace the liquid class imports and usage with hardcoded values
-    if export_temp:
-        # Get the liquid class parameters by evaluating the module
-        liquid_params = get_liquid_class_params_from_module(liquid_type)
-
-        if liquid_params:
-            # Create a hardcoded liquid class function
-            hardcoded_function = f'''
-# flake8: noqa: E272,E202
-
-def get_hardcoded_liquid_class_params():
-    """Hardcoded liquid class parameters for {liquid_type}"""
-    return {{
-        "aspiration_rate": {liquid_params["aspiration_rate"]},
-        "aspiration_delay": {liquid_params["aspiration_delay"]},
-        "aspiration_withdrawal_rate": {liquid_params["aspiration_withdrawal_rate"]},
-        "dispense_rate": {liquid_params["dispense_rate"]},
-        "dispense_delay": {liquid_params["dispense_delay"]},
-        "blowout_rate": {liquid_params["blowout_rate"]},
-        "touch_tip": {liquid_params["touch_tip"]}
-    }}
-
-def get_default_liquid_class_params(pipette, liquid):
-    """Simplified default liquid class parameters for exported protocol"""
-    # Return the hardcoded parameters since we don't need the complex logic
-    return get_hardcoded_liquid_class_params()
-'''
-
-            # Remove the liquid class imports
-            import_string = (
-                "from liquids.liquid_classes import (\n"
-                "    get_liquid_class_params,\n"
-                "    PipetteType,\n"
-                "    LiquidType,\n"
-                "    LiquidClassParams,\n"
-                ")"
-            )
-            modified_content = modified_content.replace(
-                import_string,
-                "# Liquid class imports removed - using hardcoded values",
-            )
-
-            # Add the hardcoded function after the imports section
-            import_end = modified_content.find("metadata = {")
-            if import_end != -1:
-                modified_content = (
-                    modified_content[:import_end]
-                    + hardcoded_function
-                    + "\n\n"
-                    + modified_content[import_end:]
-                )
-
-            # Replace the liquid type conversion in the run function
-            modified_content = modified_content.replace(
-                "LIQUID_TYPE = LiquidType[protocol.params.liquid_type]  # type: ignore",
-                f"LIQUID_TYPE = '{liquid_type}'  # Hardcoded liquid type",
-            )
-
-            # Replace the pipette type conversion
-            modified_content = modified_content.replace(
-                "PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore",
-                "PIPETTE_TYPE = 'P1000'  # Hardcoded pipette type",
-            )
-
-            # Replace the get_liquid_class_params call with the hardcoded function
-            modified_content = modified_content.replace(
-                "get_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)",
-                "get_hardcoded_liquid_class_params()",
-            )
-
-            # Replace references to .value attributes since we're using strings now
-            modified_content = modified_content.replace("PIPETTE_TYPE.value", "PIPETTE_TYPE")
-            modified_content = modified_content.replace("LIQUID_TYPE.value", "LIQUID_TYPE")
-
-            # Replace the .to_dict() call since we're returning a dict directly
-            modified_content = modified_content.replace(
-                "liquid_class_params.to_dict()", "liquid_class_params"
-            )
-
-            # Replace the original get_default_liquid_class_params function
-            # Find the start and end of the original function
-            original_func_start = modified_content.find(
-                "def get_default_liquid_class_params("
-                "pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:"
-            )
-            if original_func_start != -1:
-                # Find the end of the function (next function definition)
-                next_func_start = modified_content.find("def ", original_func_start + 1)
-                if next_func_start != -1:
-                    # Replace the entire original function
-                    modified_content = (
-                        modified_content[:original_func_start] + modified_content[next_func_start:]
-                    )
-                else:
-                    # If no next function, just remove from start to end of file
-                    modified_content = modified_content[:original_func_start]
+    # Handle custom parameters if provided
+    if custom_params:
+        modified_content = _inject_custom_liquid_params(
+            modified_content, liquid_type, custom_params
+        )
+    elif export_temp:
+        modified_content = _inject_hardcoded_liquid_params(modified_content, liquid_type)
 
     # Replace enum comparisons with string comparisons
     for liquid in [
@@ -262,6 +218,138 @@ def get_default_liquid_class_params(pipette, liquid):
     temp_file.close()
 
     return temp_file.name
+
+
+def _inject_custom_liquid_params(content, liquid_type, custom_params):
+    """Inject custom liquid parameters into protocol content"""
+    # Merge with defaults for any missing parameters
+    default_params = get_liquid_class_params_from_module(liquid_type)
+    if default_params:
+        for key, value in default_params.items():
+            if key not in custom_params:
+                custom_params[key] = value
+
+    # Create hardcoded function with custom parameters
+    hardcoded_function = f'''
+# flake8: noqa: E272,E202
+
+def get_hardcoded_liquid_class_params():
+    """Hardcoded liquid class parameters for {liquid_type} (custom)"""
+    return {{
+        "aspiration_rate": {custom_params["aspiration_rate"]},
+        "aspiration_delay": {custom_params["aspiration_delay"]},
+        "aspiration_withdrawal_rate": {custom_params["aspiration_withdrawal_rate"]},
+        "dispense_rate": {custom_params["dispense_rate"]},
+        "dispense_delay": {custom_params["dispense_delay"]},
+        "blowout_rate": {custom_params["blowout_rate"]},
+        "touch_tip": {custom_params["touch_tip"]}
+    }}
+
+def get_default_liquid_class_params(pipette, liquid):
+    """Simplified default liquid class parameters for exported protocol"""
+    # Return the hardcoded parameters since we don't need the complex logic
+    return get_hardcoded_liquid_class_params()
+'''
+
+    return _inject_liquid_params_into_content(content, hardcoded_function, liquid_type)
+
+
+def _inject_hardcoded_liquid_params(content, liquid_type):
+    """Inject hardcoded liquid parameters into protocol content"""
+    # Get the liquid class parameters by evaluating the module
+    liquid_params = get_liquid_class_params_from_module(liquid_type)
+
+    if not liquid_params:
+        return content
+
+    # Create hardcoded function
+    hardcoded_function = f'''
+# flake8: noqa: E272,E202
+
+def get_hardcoded_liquid_class_params():
+    """Hardcoded liquid class parameters for {liquid_type}"""
+    return {{
+        "aspiration_rate": {liquid_params["aspiration_rate"]},
+        "aspiration_delay": {liquid_params["aspiration_delay"]},
+        "aspiration_withdrawal_rate": {liquid_params["aspiration_withdrawal_rate"]},
+        "dispense_rate": {liquid_params["dispense_rate"]},
+        "dispense_delay": {liquid_params["dispense_delay"]},
+        "blowout_rate": {liquid_params["blowout_rate"]},
+        "touch_tip": {liquid_params["touch_tip"]}
+    }}
+
+def get_default_liquid_class_params(pipette, liquid):
+    """Simplified default liquid class parameters for exported protocol"""
+    # Return the hardcoded parameters since we don't need the complex logic
+    return get_hardcoded_liquid_class_params()
+'''
+
+    return _inject_liquid_params_into_content(content, hardcoded_function, liquid_type)
+
+
+def _inject_liquid_params_into_content(content, hardcoded_function, liquid_type):
+    """Common function to inject liquid parameters into protocol content"""
+    # Remove the liquid class imports
+    import_string = (
+        "from liquids.liquid_classes import (\n"
+        "    get_liquid_class_params,\n"
+        "    PipetteType,\n"
+        "    LiquidType,\n"
+        "    LiquidClassParams,\n"
+        ")"
+    )
+    content = content.replace(
+        import_string,
+        "# Liquid class imports removed - using hardcoded values",
+    )
+
+    # Add the hardcoded function after the imports section
+    import_end = content.find("metadata = {")
+    if import_end != -1:
+        content = content[:import_end] + hardcoded_function + "\n\n" + content[import_end:]
+
+    # Replace the liquid type conversion in the run function
+    content = content.replace(
+        "LIQUID_TYPE = LiquidType[protocol.params.liquid_type]  # type: ignore",
+        f"LIQUID_TYPE = '{liquid_type}'  # Hardcoded liquid type",
+    )
+
+    # Replace the pipette type conversion
+    content = content.replace(
+        "PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore",
+        "PIPETTE_TYPE = 'P1000'  # Hardcoded pipette type",
+    )
+
+    # Replace the get_liquid_class_params call with the hardcoded function
+    content = content.replace(
+        "get_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)",
+        "get_hardcoded_liquid_class_params()",
+    )
+
+    # Replace references to .value attributes since we're using strings now
+    content = content.replace("PIPETTE_TYPE.value", "PIPETTE_TYPE")
+    content = content.replace("LIQUID_TYPE.value", "LIQUID_TYPE")
+
+    # Replace the .to_dict() call since we're returning a dict directly
+    content = content.replace("liquid_class_params.to_dict()", "liquid_class_params")
+
+    # Replace the original get_default_liquid_class_params function
+    # Find the start and end of the original function
+    original_func_start = content.find(
+        "def get_default_liquid_class_params("
+        "pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:"
+    )
+    if original_func_start != -1:
+        # Find the end of the function (next function definition)
+        next_func_start = content.find("def ", original_func_start + 1)
+        if next_func_start != -1:
+            # Replace the entire original function
+            content = content[:original_func_start] + content[next_func_start:]
+        else:
+            # If no next function, just remove from start to end of file
+            content = content[:original_func_start]
+
+    return content
 
 
 def filter_output(output, verbose=False):
@@ -306,7 +394,12 @@ def filter_output(output, verbose=False):
 
 
 def run_simulation(
-    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, verbose=False, quiet=False
+    liquid_type="GLYCEROL_50",
+    sample_count=96,
+    export_temp=False,
+    verbose=False,
+    quiet=False,
+    custom_params=None,
 ):
     """Run the simulation with specified parameters"""
 
@@ -324,7 +417,7 @@ def run_simulation(
 
     # Create modified protocol
     temp_protocol = create_modified_protocol(
-        liquid_type, sample_count, export_temp, use_real_detection
+        liquid_type, sample_count, export_temp, use_real_detection, custom_params
     )
     if not temp_protocol:
         return False
@@ -368,7 +461,11 @@ def run_simulation(
 
 
 def create_modified_8channel_protocol(
-    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, use_real_detection=False
+    liquid_type="GLYCEROL_50",
+    sample_count=96,
+    export_temp=False,
+    use_real_detection=False,
+    custom_params=None,
 ):
     """Create a modified 8channel protocol file with the specified parameters"""
     protocol_path = Path("protocol_8channel_single.py")
@@ -398,102 +495,13 @@ def create_modified_8channel_protocol(
             "USE_REAL_DETECTION = False  # Set to False for simulation mode",
         )
 
-    # If exporting, replace the liquid class imports and usage with hardcoded values
-    if export_temp:
-        # Get the liquid class parameters by evaluating the module
-        liquid_params = get_liquid_class_params_from_module(liquid_type)
-
-        if liquid_params:
-            # Create a hardcoded liquid class function
-            hardcoded_function = f'''
-# flake8: noqa: E272,E202
-
-def get_hardcoded_liquid_class_params():
-    """Hardcoded liquid class parameters for {liquid_type}"""
-    return {{
-        "aspiration_rate": {liquid_params["aspiration_rate"]},
-        "aspiration_delay": {liquid_params["aspiration_delay"]},
-        "aspiration_withdrawal_rate": {liquid_params["aspiration_withdrawal_rate"]},
-        "dispense_rate": {liquid_params["dispense_rate"]},
-        "dispense_delay": {liquid_params["dispense_delay"]},
-        "blowout_rate": {liquid_params["blowout_rate"]},
-        "touch_tip": {liquid_params["touch_tip"]}
-    }}
-
-def get_default_liquid_class_params(pipette, liquid):
-    """Simplified default liquid class parameters for exported protocol"""
-    # Return the hardcoded parameters since we don't need the complex logic
-    return get_hardcoded_liquid_class_params()
-'''
-
-            # Remove the liquid class imports
-            import_string = (
-                "from liquids.liquid_classes import (\n"
-                "    get_liquid_class_params,\n"
-                "    PipetteType,\n"
-                "    LiquidType,\n"
-                "    LiquidClassParams,\n"
-                ")"
-            )
-            modified_content = modified_content.replace(
-                import_string,
-                "# Liquid class imports removed - using hardcoded values",
-            )
-
-            # Add the hardcoded function after the imports section
-            import_end = modified_content.find("metadata = {")
-            if import_end != -1:
-                modified_content = (
-                    modified_content[:import_end]
-                    + hardcoded_function
-                    + "\n\n"
-                    + modified_content[import_end:]
-                )
-
-            # Replace the liquid type conversion in the run function
-            modified_content = modified_content.replace(
-                "LIQUID_TYPE = LiquidType[protocol.params.liquid_type]  # type: ignore",
-                f"LIQUID_TYPE = '{liquid_type}'  # Hardcoded liquid type",
-            )
-
-            # Replace the pipette type conversion
-            modified_content = modified_content.replace(
-                "PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore",
-                "PIPETTE_TYPE = 'P1000'  # Hardcoded pipette type",
-            )
-
-            # Replace the get_liquid_class_params call with the hardcoded function
-            modified_content = modified_content.replace(
-                "get_liquid_class_params(PIPETTE_TYPE, LIQUID_TYPE)",
-                "get_hardcoded_liquid_class_params()",
-            )
-
-            # Replace references to .value attributes since we're using strings now
-            modified_content = modified_content.replace("PIPETTE_TYPE.value", "PIPETTE_TYPE")
-            modified_content = modified_content.replace("LIQUID_TYPE.value", "LIQUID_TYPE")
-
-            # Replace the .to_dict() call since we're returning a dict directly
-            modified_content = modified_content.replace(
-                "liquid_class_params.to_dict()", "liquid_class_params"
-            )
-
-            # Replace the original get_default_liquid_class_params function
-            # Find the start and end of the original function
-            original_func_start = modified_content.find(
-                "def get_default_liquid_class_params("
-                "pipette: PipetteType, liquid: LiquidType) -> LiquidClassParams:"
-            )
-            if original_func_start != -1:
-                # Find the end of the function (next function definition)
-                next_func_start = modified_content.find("def ", original_func_start + 1)
-                if next_func_start != -1:
-                    # Replace the entire original function
-                    modified_content = (
-                        modified_content[:original_func_start] + modified_content[next_func_start:]
-                    )
-                else:
-                    # If no next function, just remove from start to end of file
-                    modified_content = modified_content[:original_func_start]
+    # Handle custom parameters if provided
+    if custom_params:
+        modified_content = _inject_custom_liquid_params(
+            modified_content, liquid_type, custom_params
+        )
+    elif export_temp:
+        modified_content = _inject_hardcoded_liquid_params(modified_content, liquid_type)
 
     # Replace enum comparisons with string comparisons
     for liquid in [
@@ -519,7 +527,12 @@ def get_default_liquid_class_params(pipette, liquid):
 
 
 def run_simulation_8channel(
-    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, verbose=False, quiet=False
+    liquid_type="GLYCEROL_50",
+    sample_count=96,
+    export_temp=False,
+    verbose=False,
+    quiet=False,
+    custom_params=None,
 ):
     """Run the 8channel simulation with specified parameters"""
     if not quiet:
@@ -535,7 +548,7 @@ def run_simulation_8channel(
     use_real_detection = export_temp
 
     temp_protocol = create_modified_8channel_protocol(
-        liquid_type, sample_count, export_temp, use_real_detection
+        liquid_type, sample_count, export_temp, use_real_detection, custom_params
     )
     if not temp_protocol:
         return False
@@ -597,6 +610,12 @@ EXAMPLES:
 
   # Verbose output with detailed information
   python run_simulation.py ETHANOL 12 --verbose
+
+  # Run with custom liquid class parameters
+  python run_simulation.py WATER 8 --custom-params "aspiration_rate=100,dispense_rate=80,touch_tip=true"
+
+  # Custom parameters with 8-channel mode
+  python run_simulation.py DMSO 24 --8channel --custom-params "aspiration_rate=50,aspiration_delay=2.0"
 
 AVAILABLE LIQUID TYPES:
   GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99
@@ -665,6 +684,15 @@ For more information, visit: https://github.com/LiquidLib/custom_liquid_class_fi
         help="Enable real detection mode (default: simulation mode)",
     )
 
+    # Custom liquid class parameters
+    parser.add_argument(
+        "--custom-params",
+        metavar="PARAMS",
+        help="Custom liquid class parameters in format: param1=value1,param2=value2,... "
+        "Available params: aspiration_rate, aspiration_delay, aspiration_withdrawal_rate, "
+        "dispense_rate, dispense_delay, blowout_rate, touch_tip",
+    )
+
     # Information options
     parser.add_argument("--version", action="version", version="custom-liquid-class-finder 0.1.0")
 
@@ -711,6 +739,17 @@ For more information, visit: https://github.com/LiquidLib/custom_liquid_class_fi
         print("Error: Sample count must be between 1 and 96")
         return 1
 
+    # Parse custom parameters if provided
+    custom_params = None
+    if args.custom_params:
+        try:
+            custom_params = parse_custom_params(args.custom_params)
+            if verbose and not quiet:
+                print(f"Custom parameters parsed: {custom_params}")
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
     # Set detection mode based on arguments
     use_real_detection = args.real_detection or export_temp
 
@@ -722,12 +761,18 @@ For more information, visit: https://github.com/LiquidLib/custom_liquid_class_fi
         print(f"  Mode: {'8-channel' if mode_8channel else 'Single-channel'}")
         print(f"  Detection: {'Real' if use_real_detection else 'Simulated'}")
         print(f"  Export: {'Yes' if export_temp else 'No'}")
+        if custom_params:
+            print(f"  Custom Parameters: {custom_params}")
         print()
 
     if mode_8channel:
-        success = run_simulation_8channel(liquid_type, sample_count, export_temp, verbose, quiet)
+        success = run_simulation_8channel(
+            liquid_type, sample_count, export_temp, verbose, quiet, custom_params
+        )
     else:
-        success = run_simulation(liquid_type, sample_count, export_temp, verbose, quiet)
+        success = run_simulation(
+            liquid_type, sample_count, export_temp, verbose, quiet, custom_params
+        )
 
     return 0 if success else 1
 

@@ -279,6 +279,7 @@ python run_simulation.py DMSO 48 --export
 ### Advanced Options
 - `--pipette {P20,P50,P300,P1000}` - Pipette type to use (default: P1000)
 - `--real-detection` - Enable real detection mode (default: simulation mode)
+- `--custom-params PARAMS` - Custom liquid class parameters in format: `param1=value1,param2=value2,...`
 
 ## Available Liquid Types
 
@@ -295,6 +296,52 @@ python run_simulation.py DMSO 48 --export
 | WATER | Water - Standard aqueous solution |
 | DMSO | DMSO - Dimethyl sulfoxide, volatile organic solvent |
 | ETHANOL | Ethanol - Volatile alcohol |
+
+## Custom Liquid Class Parameters
+
+You can specify custom liquid class parameters using the `--custom-params` option. This allows you to override the default parameters for any liquid type.
+
+### Available Parameters
+
+| Parameter | Type | Description | Units |
+|-----------|------|-------------|-------|
+| `aspiration_rate` | float | Speed of liquid aspiration | µL/s |
+| `aspiration_delay` | float | Delay after aspiration | seconds |
+| `aspiration_withdrawal_rate` | float | Speed of tip withdrawal after aspiration | mm/s |
+| `dispense_rate` | float | Speed of liquid dispense | µL/s |
+| `dispense_delay` | float | Delay after dispense | seconds |
+| `blowout_rate` | float | Speed of blowout operation | µL/s |
+| `touch_tip` | boolean | Whether to touch tip after dispense | true/false |
+
+### Parameter Format
+
+Parameters are specified as comma-separated key-value pairs:
+```
+param1=value1,param2=value2,param3=value3
+```
+
+### Boolean Values
+
+For the `touch_tip` parameter, you can use:
+- `true`, `yes`, `1`, `on` for True
+- `false`, `no`, `0`, `off` for False
+
+### Examples
+
+```bash
+# Override aspiration and dispense rates
+python run_simulation.py WATER 8 --custom-params "aspiration_rate=100,dispense_rate=80"
+
+# Set all parameters for a custom liquid class
+python run_simulation.py CUSTOM 12 --custom-params "aspiration_rate=50,aspiration_delay=2.0,dispense_rate=40,dispense_delay=1.5,blowout_rate=20,touch_tip=true"
+
+# Use with 8-channel mode
+python run_simulation.py ETHANOL 24 --8channel --custom-params "aspiration_rate=75,dispense_rate=60"
+```
+
+### Parameter Merging
+
+When you specify custom parameters, they are merged with the default parameters for the liquid type. Any parameters you don't specify will use the default values from the liquid class system.
 
 ## Usage Examples
 
@@ -346,8 +393,14 @@ python run_simulation.py WATER 12 --pipette P300
 # Enable real detection mode
 python run_simulation.py DMSO 8 --real-detection
 
-# Combine multiple options
-python run_simulation.py GLYCEROL_50 24 --8channel --verbose --export
+  # Combine multiple options
+  python run_simulation.py GLYCEROL_50 24 --8channel --verbose --export
+
+  # Run with custom liquid class parameters
+  python run_simulation.py WATER 8 --custom-params "aspiration_rate=100,dispense_rate=80,touch_tip=true"
+
+  # Custom parameters with 8-channel mode
+  python run_simulation.py DMSO 24 --8channel --custom-params "aspiration_rate=50,aspiration_delay=2.0"
 ```
 
 ## Output Modes
