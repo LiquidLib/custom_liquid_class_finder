@@ -442,7 +442,7 @@ The script can be easily integrated into:
 
 - Python 3.10+
 - Opentrons API
-- Required protocol files (`protocol.py`, `protocol_8channel_single.py`)
+- Required protocol files (`protocols/single_channel.py`, `protocols/eight_channel.py`)
 
 ## Troubleshooting
 

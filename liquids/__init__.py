@@ -6,7 +6,7 @@ for automated liquid handling protocols, particularly for viscous liquids like g
 
 Main components:
 - liquid_classes.py: Core system with parameter registry
-- liquid_class_manager.py: Command-line utility for management
+- liquid_class_manager.py: Command-line utility for management (consolidated)
 - liquid_class_demo_basic.py: Basic demonstration script
 - liquid_class_demo_custom.py: Comprehensive demonstration script
 """
@@ -32,4 +32,5 @@ __all__ = [
     "export_liquid_classes_csv",
     "import_liquid_classes_from_csv",
     "add_liquid_class_params",
+    "liquid_class_manager",
 ]

@@ -154,9 +154,9 @@ def create_modified_protocol(
     """Create a modified protocol file with the specified parameters"""
 
     # Read the original protocol
-    protocol_path = Path("protocol.py")
+    protocol_path = Path("protocols/single_channel.py")
     if not protocol_path.exists():
-        print("Error: protocol.py not found")
+        print("Error: protocols/single_channel.py not found")
         return None
 
     with open(protocol_path, "r") as f:
@@ -468,9 +468,9 @@ def create_modified_8channel_protocol(
     custom_params=None,
 ):
     """Create a modified 8channel protocol file with the specified parameters"""
-    protocol_path = Path("protocol_8channel_single.py")
+    protocol_path = Path("protocols/eight_channel.py")
     if not protocol_path.exists():
-        print("Error: protocol_8channel_single.py not found")
+        print("Error: protocols/eight_channel.py not found")
         return None
     with open(protocol_path, "r") as f:
         content = f.read()

@@ -156,7 +156,7 @@ python run_simulation.py GLYCEROL_99 96 --8channel --export
 - **Detection**: Real capacitive sensing or simulated detection
 - **Simulation**: Use `run_simulation.py` (default mode)
 
-#### **8-Channel Mode** (`protocol_8channel_single.py`)
+#### **8-Channel Mode** (`protocols/eight_channel.py`)
 - **Pipettes**: 8-channel 1000µL (dispensing + evaluation)
 - **Processing**: 8 wells simultaneously in 8-channel operations
 - **Use Case**: High-throughput optimization with channel consistency analysis
@@ -506,8 +506,9 @@ The project follows these style guidelines:
 
 ```
 liquid-class-finder/
-├── protocol.py              # Main single-channel protocol file
-├── protocol_8channel_single.py  # 8-channel protocol file
+├── protocols/               # Protocol files
+│   ├── single_channel.py   # Single-channel protocol
+│   └── eight_channel.py    # 8-channel protocol
 ├── protocol_env.py          # Environment-based protocol
 ├── run_simulation.py        # 🚀 Unified simulation & testing tool (single + 8-channel)
 ├── liquids/                 # Liquid class system
