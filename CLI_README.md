@@ -238,3 +238,186 @@ To add new features to the CLI:
 ## License
 
 This CLI tool is part of the Custom Liquid Class Finder project and is licensed under the MIT License.
+
+# Custom Liquid Class Finder - CLI Usage Guide
+
+The `run_simulation.py` script provides a robust command-line interface for running Opentrons protocol simulations with custom liquid class parameters.
+
+## Quick Start
+
+```bash
+# Basic simulation with default parameters
+python run_simulation.py
+
+# Simulate with specific liquid type and sample count
+python run_simulation.py GLYCEROL_99 24
+
+# Run 8-channel simulation
+python run_simulation.py WATER 96 --8channel
+
+# Export protocol file for inspection
+python run_simulation.py DMSO 48 --export
+```
+
+## Command Line Options
+
+### Positional Arguments
+- `liquid_type` - Liquid type to use for simulation (default: GLYCEROL_50)
+- `sample_count` - Number of samples to process (1-96, default: 8)
+
+### Mode Options
+- `--8channel` - Run simulation in 8-channel mode (default: single-channel)
+- `--export` - Export the generated protocol file instead of deleting it after simulation
+
+### Information Options
+- `--list-liquids` - List all available liquid types and exit
+- `--show-params LIQUID_TYPE` - Show liquid class parameters for the specified liquid type and exit
+- `--verbose, -v` - Enable verbose output with detailed simulation information
+- `--quiet, -q` - Suppress non-error output
+- `--version` - Show program's version number and exit
+
+### Advanced Options
+- `--pipette {P20,P50,P300,P1000}` - Pipette type to use (default: P1000)
+- `--real-detection` - Enable real detection mode (default: simulation mode)
+
+## Available Liquid Types
+
+| Liquid Type | Description |
+|-------------|-------------|
+| GLYCEROL_10 | Glycerol 10% - Low viscosity aqueous solution |
+| GLYCEROL_50 | Glycerol 50% - Medium viscosity aqueous solution |
+| GLYCEROL_90 | Glycerol 90% - High viscosity aqueous solution |
+| GLYCEROL_99 | Glycerol 99% - Very high viscosity solution |
+| PEG_8000_50 | PEG 8000 50% w/v - Polyethylene glycol solution |
+| SANITIZER_62_ALCOHOL | Sanitizer 62% Alcohol - Volatile alcohol solution |
+| TWEEN_20_100 | Tween 20 100% - Surfactant solution |
+| ENGINE_OIL_100 | Engine oil 100% - High viscosity oil |
+| WATER | Water - Standard aqueous solution |
+| DMSO | DMSO - Dimethyl sulfoxide, volatile organic solvent |
+| ETHANOL | Ethanol - Volatile alcohol |
+
+## Usage Examples
+
+### Basic Operations
+
+```bash
+# List all available liquid types
+python run_simulation.py --list-liquids
+
+# Show parameters for a specific liquid type
+python run_simulation.py --show-params GLYCEROL_50
+
+# Check version
+python run_simulation.py --version
+```
+
+### Simulation Modes
+
+```bash
+# Single-channel simulation (default)
+python run_simulation.py WATER 12
+
+# 8-channel simulation
+python run_simulation.py ETHANOL 24 --8channel
+
+# With verbose output
+python run_simulation.py DMSO 8 --verbose
+
+# Quiet mode (minimal output)
+python run_simulation.py GLYCEROL_99 4 --quiet
+```
+
+### Protocol Export
+
+```bash
+# Export protocol file for inspection
+python run_simulation.py WATER 96 --export
+
+# Export with specific parameters
+python run_simulation.py ETHANOL 48 --8channel --export
+```
+
+### Advanced Usage
+
+```bash
+# Use specific pipette type
+python run_simulation.py WATER 12 --pipette P300
+
+# Enable real detection mode
+python run_simulation.py DMSO 8 --real-detection
+
+# Combine multiple options
+python run_simulation.py GLYCEROL_50 24 --8channel --verbose --export
+```
+
+## Output Modes
+
+### Normal Mode
+Shows essential simulation information and results.
+
+### Verbose Mode (`--verbose`)
+Provides detailed information including:
+- Configuration summary
+- Parameter adjustments
+- Gradient calculations
+- Step-by-step execution details
+- Final optimization statistics
+
+### Quiet Mode (`--quiet`)
+Suppresses all non-error output, useful for:
+- Batch processing
+- Integration with other tools
+- Automated testing
+
+## Error Handling
+
+The CLI provides clear error messages for:
+- Invalid liquid types
+- Out-of-range sample counts
+- Missing dependencies
+- Protocol generation failures
+
+## Integration
+
+The script can be easily integrated into:
+- Automated workflows
+- CI/CD pipelines
+- Laboratory automation systems
+- Data analysis pipelines
+
+## Dependencies
+
+- Python 3.10+
+- Opentrons API
+- Required protocol files (`protocol.py`, `protocol_8channel_single.py`)
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"protocol.py not found"**
+   - Ensure you're running from the correct directory
+   - Check that protocol files exist
+
+2. **"Could not import liquid_classes module"**
+   - Verify the `liquids/` directory structure
+   - Check Python path configuration
+
+3. **"Invalid liquid type"**
+   - Use `--list-liquids` to see available types
+   - Check spelling and case sensitivity
+
+### Getting Help
+
+```bash
+# Show help
+python run_simulation.py --help
+
+# Show version
+python run_simulation.py --version
+
+# List available liquids
+python run_simulation.py --list-liquids
+```
+
+For more information, visit: https://github.com/LiquidLib/custom_liquid_class_finder

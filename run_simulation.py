@@ -264,7 +264,7 @@ def get_default_liquid_class_params(pipette, liquid):
     return temp_file.name
 
 
-def filter_output(output):
+def filter_output(output, verbose=False):
     """Filter out unwanted messages from the output"""
     if not output:
         return ""
@@ -272,30 +272,52 @@ def filter_output(output):
     lines = output.split("\n")
     filtered_lines = []
 
+    # Messages to skip in non-verbose mode
+    skip_messages = [
+        "robot_settings.json not found",
+        "Loading defaults",
+        "Belt calibration not found",
+        "Using default robot settings",
+        "Robot settings loaded",
+    ]
+
+    # Messages to highlight in verbose mode
+    highlight_messages = [
+        "Protocol simulation completed",
+        "Protocol completed successfully",
+        "Error:",
+        "Warning:",
+        "INFO:",
+        "DEBUG:",
+    ]
+
     for line in lines:
-        # Skip robot settings and belt calibration messages
-        if any(
-            skip_msg in line
-            for skip_msg in [
-                "robot_settings.json not found",
-                "Loading defaults",
-                "Belt calibration not found",
-            ]
-        ):
+        # Skip unwanted messages unless verbose
+        if not verbose and any(skip_msg in line for skip_msg in skip_messages):
             continue
-        filtered_lines.append(line)
+
+        # Highlight important messages in verbose mode
+        if verbose and any(highlight_msg in line for highlight_msg in highlight_messages):
+            filtered_lines.append(f"  {line}")
+        else:
+            filtered_lines.append(line)
 
     return "\n".join(filtered_lines)
 
 
-def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
+def run_simulation(
+    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, verbose=False, quiet=False
+):
     """Run the simulation with specified parameters"""
 
-    print("Running simulation with:")
-    print(f"  Liquid Type: {liquid_type}")
-    print(f"  Sample Count: {sample_count}")
-    print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
-    print()
+    if not quiet:
+        print("Running simulation with:")
+        print(f"  Liquid Type: {liquid_type}")
+        print(f"  Sample Count: {sample_count}")
+        print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
+        if verbose:
+            print(f"  Verbose Mode: Enabled")
+        print()
 
     # Use real detection when exporting
     use_real_detection = export_temp
@@ -315,16 +337,21 @@ def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False
 
         # Filter and print output
         if result.stdout:
-            filtered_stdout = filter_output(result.stdout)
+            filtered_stdout = filter_output(result.stdout, verbose)
             if filtered_stdout.strip():
-                print("Simulation Output:")
-                print(filtered_stdout)
+                if not quiet:
+                    print("Simulation Output:")
+                    print(filtered_stdout)
 
         if result.stderr:
-            filtered_stderr = filter_output(result.stderr)
+            filtered_stderr = filter_output(result.stderr, verbose)
             if filtered_stderr.strip():
-                print("Simulation Errors:")
-                print(filtered_stderr)
+                if not quiet:
+                    print("Simulation Errors:")
+                    print(filtered_stderr)
+
+        if verbose and not quiet:
+            print(f"Simulation completed with return code: {result.returncode}")
 
         return result.returncode == 0
 
@@ -336,7 +363,8 @@ def run_simulation(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False
             except OSError:
                 pass
         else:
-            print(f"\nTemporary protocol file exported to: {temp_protocol}")
+            if not quiet:
+                print(f"\nTemporary protocol file exported to: {temp_protocol}")
 
 
 def create_modified_8channel_protocol(
@@ -490,13 +518,18 @@ def get_default_liquid_class_params(pipette, liquid):
     return temp_file.name
 
 
-def run_simulation_8channel(liquid_type="GLYCEROL_50", sample_count=96, export_temp=False):
+def run_simulation_8channel(
+    liquid_type="GLYCEROL_50", sample_count=96, export_temp=False, verbose=False, quiet=False
+):
     """Run the 8channel simulation with specified parameters"""
-    print("Running 8-channel simulation with:")
-    print(f"  Liquid Type: {liquid_type}")
-    print(f"  Sample Count: {sample_count}")
-    print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
-    print()
+    if not quiet:
+        print("Running 8-channel simulation with:")
+        print(f"  Liquid Type: {liquid_type}")
+        print(f"  Sample Count: {sample_count}")
+        print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
+        if verbose:
+            print(f"  Verbose Mode: Enabled")
+        print()
 
     # Use real detection when exporting
     use_real_detection = export_temp
@@ -511,15 +544,21 @@ def run_simulation_8channel(liquid_type="GLYCEROL_50", sample_count=96, export_t
             ["opentrons_simulate", temp_protocol], capture_output=True, text=True
         )
         if result.stdout:
-            filtered_stdout = filter_output(result.stdout)
+            filtered_stdout = filter_output(result.stdout, verbose)
             if filtered_stdout.strip():
-                print("Simulation Output:")
-                print(filtered_stdout)
+                if not quiet:
+                    print("Simulation Output:")
+                    print(filtered_stdout)
         if result.stderr:
-            filtered_stderr = filter_output(result.stderr)
+            filtered_stderr = filter_output(result.stderr, verbose)
             if filtered_stderr.strip():
-                print("Simulation Errors:")
-                print(filtered_stderr)
+                if not quiet:
+                    print("Simulation Errors:")
+                    print(filtered_stderr)
+
+        if verbose and not quiet:
+            print(f"8-channel simulation completed with return code: {result.returncode}")
+
         return result.returncode == 0
     finally:
         if not export_temp:
@@ -528,43 +567,125 @@ def run_simulation_8channel(liquid_type="GLYCEROL_50", sample_count=96, export_t
             except OSError:
                 pass
         else:
-            print(f"\nTemporary 8channel protocol file exported to: {temp_protocol}")
+            if not quiet:
+                print(f"\nTemporary 8channel protocol file exported to: {temp_protocol}")
 
 
 def main():
     """Main function to handle command-line arguments"""
     parser = argparse.ArgumentParser(
-        description="Run Opentrons protocol simulation in single or 8-channel mode."
+        description="Run Opentrons protocol simulation with custom liquid class parameters",
+        epilog="""
+EXAMPLES:
+  # Basic simulation with default parameters
+  python run_simulation.py
+
+  # Simulate with specific liquid type and sample count
+  python run_simulation.py GLYCEROL_99 24
+
+  # Run 8-channel simulation
+  python run_simulation.py WATER 96 --8channel
+
+  # Export protocol file for inspection
+  python run_simulation.py DMSO 48 --export
+
+  # List available liquid types
+  python run_simulation.py --list-liquids
+
+  # Show liquid class parameters for a specific type
+  python run_simulation.py --show-params GLYCEROL_50
+
+  # Verbose output with detailed information
+  python run_simulation.py ETHANOL 12 --verbose
+
+AVAILABLE LIQUID TYPES:
+  GLYCEROL_10, GLYCEROL_50, GLYCEROL_90, GLYCEROL_99
+  PEG_8000_50, SANITIZER_62_ALCOHOL, TWEEN_20_100
+  ENGINE_OIL_100, WATER, DMSO, ETHANOL
+
+For more information, visit: https://github.com/LiquidLib/custom_liquid_class_finder
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+
+    # Positional arguments
     parser.add_argument(
         "liquid_type",
         nargs="?",
         default="GLYCEROL_50",
-        help="Liquid type (default: GLYCEROL_50)",
+        help="Liquid type to use for simulation (default: GLYCEROL_50)",
     )
     parser.add_argument(
         "sample_count",
         nargs="?",
         type=int,
         default=8,
-        help="Sample count (default: 8)",
+        help="Number of samples to process (1-96, default: 8)",
     )
-    parser.add_argument(
-        "--export",
-        action="store_true",
-        help="Export the generated protocol file instead of deleting it",
-    )
+
+    # Mode options
     parser.add_argument(
         "--8channel",
         action="store_true",
         help="Run simulation in 8-channel mode (default: single-channel)",
     )
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        help="Export the generated protocol file instead of deleting it after simulation",
+    )
+
+    # Information options
+    parser.add_argument(
+        "--list-liquids", action="store_true", help="List all available liquid types and exit"
+    )
+    parser.add_argument(
+        "--show-params",
+        metavar="LIQUID_TYPE",
+        help="Show liquid class parameters for the specified liquid type and exit",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose output with detailed simulation information",
+    )
+    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress non-error output")
+
+    # Advanced options
+    parser.add_argument(
+        "--pipette",
+        choices=["P20", "P50", "P300", "P1000"],
+        default="P1000",
+        help="Pipette type to use (default: P1000)",
+    )
+    parser.add_argument(
+        "--real-detection",
+        action="store_true",
+        help="Enable real detection mode (default: simulation mode)",
+    )
+
+    # Information options
+    parser.add_argument("--version", action="version", version="custom-liquid-class-finder 0.1.0")
+
     args = parser.parse_args()
 
+    # Handle information requests first
+    if args.list_liquids:
+        print_liquid_types()
+        return 0
+
+    if args.show_params:
+        show_liquid_params(args.show_params.upper())
+        return 0
+
+    # Validate arguments
     liquid_type = args.liquid_type.upper()
     sample_count = args.sample_count
     export_temp = args.export
     mode_8channel = args.__dict__["8channel"]
+    verbose = args.verbose
+    quiet = args.quiet
 
     valid_liquids = [
         "GLYCEROL_10",
@@ -579,18 +700,99 @@ def main():
         "DMSO",
         "ETHANOL",
     ]
+
     if liquid_type not in valid_liquids:
-        print(f"Error: Invalid liquid type. Choose from: {', '.join(valid_liquids)}")
+        print(f"Error: Invalid liquid type '{liquid_type}'")
+        print(f"Available types: {', '.join(valid_liquids)}")
+        print("Use --list-liquids to see detailed descriptions")
         return 1
+
     if sample_count < 1 or sample_count > 96:
         print("Error: Sample count must be between 1 and 96")
         return 1
 
+    # Set detection mode based on arguments
+    use_real_detection = args.real_detection or export_temp
+
+    if verbose and not quiet:
+        print(f"Configuration:")
+        print(f"  Liquid Type: {liquid_type}")
+        print(f"  Sample Count: {sample_count}")
+        print(f"  Pipette Type: {args.pipette}")
+        print(f"  Mode: {'8-channel' if mode_8channel else 'Single-channel'}")
+        print(f"  Detection: {'Real' if use_real_detection else 'Simulated'}")
+        print(f"  Export: {'Yes' if export_temp else 'No'}")
+        print()
+
     if mode_8channel:
-        success = run_simulation_8channel(liquid_type, sample_count, export_temp)
+        success = run_simulation_8channel(liquid_type, sample_count, export_temp, verbose, quiet)
     else:
-        success = run_simulation(liquid_type, sample_count, export_temp)
+        success = run_simulation(liquid_type, sample_count, export_temp, verbose, quiet)
+
     return 0 if success else 1
+
+
+def print_liquid_types():
+    """Print all available liquid types with descriptions"""
+    liquid_descriptions = {
+        "GLYCEROL_10": "Glycerol 10% - Low viscosity aqueous solution",
+        "GLYCEROL_50": "Glycerol 50% - Medium viscosity aqueous solution",
+        "GLYCEROL_90": "Glycerol 90% - High viscosity aqueous solution",
+        "GLYCEROL_99": "Glycerol 99% - Very high viscosity solution",
+        "PEG_8000_50": "PEG 8000 50% w/v - Polyethylene glycol solution",
+        "SANITIZER_62_ALCOHOL": "Sanitizer 62% Alcohol - Volatile alcohol solution",
+        "TWEEN_20_100": "Tween 20 100% - Surfactant solution",
+        "ENGINE_OIL_100": "Engine oil 100% - High viscosity oil",
+        "WATER": "Water - Standard aqueous solution",
+        "DMSO": "DMSO - Dimethyl sulfoxide, volatile organic solvent",
+        "ETHANOL": "Ethanol - Volatile alcohol",
+    }
+
+    print("Available Liquid Types:")
+    print("=" * 50)
+    for liquid, description in liquid_descriptions.items():
+        print(f"{liquid:<20} - {description}")
+    print("\nUse --show-params LIQUID_TYPE to see detailed parameters")
+
+
+def show_liquid_params(liquid_type):
+    """Show liquid class parameters for a specific liquid type"""
+    try:
+        # Import the liquid classes module
+        sys.path.insert(0, str(Path.cwd()))
+        from liquids.liquid_classes import get_liquid_class_params, PipetteType, LiquidType
+
+        if liquid_type not in [lt.name for lt in LiquidType]:
+            print(f"Error: Unknown liquid type '{liquid_type}'")
+            print("Use --list-liquids to see available types")
+            return
+
+        liquid_enum = LiquidType[liquid_type]
+
+        print(f"Liquid Class Parameters for {liquid_type}:")
+        print("=" * 50)
+
+        for pipette_name in ["P20", "P50", "P300", "P1000"]:
+            pipette_enum = PipetteType[pipette_name]
+            params = get_liquid_class_params(pipette_enum, liquid_enum)
+
+            if params:
+                print(f"\n{pipette_name} Pipette:")
+                print(f"  Aspiration Rate: {params.aspiration_rate} µL/s")
+                print(f"  Aspiration Delay: {params.aspiration_delay} s")
+                print(f"  Aspiration Withdrawal Rate: {params.aspiration_withdrawal_rate} mm/s")
+                print(f"  Dispense Rate: {params.dispense_rate} µL/s")
+                print(f"  Dispense Delay: {params.dispense_delay} s")
+                print(f"  Blowout Rate: {params.blowout_rate} µL/s")
+                print(f"  Touch Tip: {'Yes' if params.touch_tip else 'No'}")
+            else:
+                print(f"\n{pipette_name} Pipette: No parameters available")
+
+    except ImportError as e:
+        print(f"Error: Could not import liquid_classes module: {e}")
+        print("Make sure you're running from the correct directory")
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 if __name__ == "__main__":
