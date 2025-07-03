@@ -21,11 +21,15 @@ from liquids.liquid_classes import (
     LiquidClassParams,
 )
 
+# Import optimization strategies
+from protocols.optimization_strategies import OptimizationStrategyFactory, OptimizationStrategy
+
 metadata = {
-    "protocolName": "Liquid Class Calibration with Gradient Descent",
+    "protocolName": "Liquid Class Calibration with Pluggable Optimization",
     "author": "Roman Gurovich",
     "description": (
-        "Calibration protocol using gradient descent to optimize liquid handling parameters across all 96 wells"  # noqa: E501
+        "Calibration protocol using pluggable optimization strategies "
+        "for liquid handling parameters"
     ),
     "source": "Roman Gurovich",
 }
@@ -175,6 +179,17 @@ def add_parameters(parameters):
         default="P1000",
         description="Type of pipette to calibrate",
     )
+    parameters.add_str(
+        display_name="Optimization strategy",
+        variable_name="optimization_strategy",
+        choices=[
+            {"display_name": "Simultaneous Gradient Descent", "value": "simultaneous"},
+            {"display_name": "Hybrid Hierarchical", "value": "hybrid"},
+            {"display_name": "Coordinate Descent", "value": "coordinate"},
+        ],
+        default="simultaneous",
+        description="Optimization strategy to use for parameter tuning",
+    )
 
 
 def run(protocol: protocol_api.ProtocolContext):
@@ -184,6 +199,7 @@ def run(protocol: protocol_api.ProtocolContext):
     TRASH_POSITION = protocol.params.trash_position  # type: ignore
     LIQUID_TYPE = LiquidType[protocol.params.liquid_type]  # type: ignore
     PIPETTE_TYPE = PipetteType[protocol.params.pipette_type]  # type: ignore
+    OPTIMIZATION_STRATEGY = protocol.params.optimization_strategy  # type: ignore
 
     # Load labware
     reservoir = protocol.load_labware("nest_12_reservoir_15ml", "D1")
@@ -259,25 +275,46 @@ def run(protocol: protocol_api.ProtocolContext):
     )
     reservoir["A1"].load_liquid(liquid=liquid, volume=15000)
 
-    # Parameter bounds for constraint checking
-    param_bounds = {
-        "aspiration_rate": (10.0, 500.0),
-        "aspiration_delay": (0.0, 5.0),
-        "aspiration_withdrawal_rate": (1.0, 20.0),
-        "dispense_rate": (10.0, 500.0),
-        "dispense_delay": (0.0, 5.0),
-        "blowout_rate": (10.0, 300.0),
-    }
+    # Calculate pipette-specific parameter bounds
+    param_bounds = OptimizationStrategy.calculate_pipette_specific_bounds(
+        PIPETTE_TYPE.value, LIQUID_TYPE.value
+    )
 
-    # Gradient descent parameters
-    gradient_step = {
-        "aspiration_rate": 10.0,
-        "aspiration_delay": 0.1,
-        "aspiration_withdrawal_rate": 0.5,
-        "dispense_rate": 10.0,
-        "dispense_delay": 0.1,
-        "blowout_rate": 5.0,
-    }
+    protocol.comment(
+        f"📊 Using pipette-specific bounds for {PIPETTE_TYPE.value} with {LIQUID_TYPE.value}:"
+    )
+    for param, (min_val, max_val) in param_bounds.items():
+        protocol.comment(f"    {param}: {min_val:.1f} - {max_val:.1f}")
+
+    # Initialize optimization strategy
+    try:
+        optimization_strategy = OptimizationStrategyFactory.create_strategy(
+            OPTIMIZATION_STRATEGY, reference_params, param_bounds, SAMPLE_COUNT
+        )
+        protocol.comment(
+            f"✅ Using optimization strategy: {optimization_strategy.get_strategy_name()}"
+        )
+        protocol.comment(
+            f"📝 Strategy description: {optimization_strategy.get_strategy_description()}"
+        )
+
+        # Show phase allocation for hybrid strategy
+        phase_configs = getattr(optimization_strategy, "phase_configs", None)
+        if phase_configs:
+            protocol.comment("📊 Phase allocation:")
+            for phase_name, config in phase_configs.items():
+                protocol.comment(
+                    f"    {phase_name}: {config['wells_per_phase']} wells - {config['description']}"
+                )
+    except ValueError as e:
+        protocol.comment(f"❌ Error creating optimization strategy: {e}")
+        protocol.comment(
+            "Available strategies: "
+            + ", ".join(OptimizationStrategyFactory.get_available_strategies())
+        )
+        return
+
+    # Optimization parameters are now handled by the strategy classes
 
     # Learning rate and optimization parameters
     initial_learning_rate = 0.1
@@ -300,49 +337,6 @@ def run(protocol: protocol_api.ProtocolContext):
     # Data storage
     well_data: List[Dict[str, Any]] = []
     optimization_history: List[Dict[str, Any]] = []
-
-    def apply_constraints(params):
-        """Apply parameter constraints"""
-        constrained_params = params.copy()
-        for param, (min_val, max_val) in param_bounds.items():
-            if param in constrained_params:
-                constrained_params[param] = max(min_val, min(max_val, constrained_params[param]))
-        return constrained_params
-
-    def calculate_gradient_direction(
-        previous_score, current_score, previous_params, current_params
-    ):
-        """Calculate gradient direction for each parameter"""
-        if previous_score == float("inf"):
-            return {param: 0.0 for param in gradient_step.keys()}
-
-        # Calculate gradient for each parameter
-        gradients = {}
-        for param in gradient_step.keys():
-            if param in previous_params and param in current_params:
-                param_change = current_params[param] - previous_params[param]
-                if abs(param_change) > 1e-6:  # Avoid division by zero
-                    # Gradient is negative of score change divided by parameter change
-                    score_change = current_score - previous_score
-                    gradients[param] = -score_change / param_change
-                else:
-                    gradients[param] = 0.0
-            else:
-                gradients[param] = 0.0
-
-        return gradients
-
-    def update_parameters_with_gradient(current_params, gradients, learning_rate):
-        """Update parameters using calculated gradients"""
-        updated_params = current_params.copy()
-
-        for param, gradient in gradients.items():
-            if param in updated_params:
-                # Apply gradient with learning rate and step size
-                step = learning_rate * gradient_step[param] * gradient
-                updated_params[param] += step
-
-        return updated_params
 
     def evaluate_liquid_height_with_tip(well, pipette, expected_height):
         """Evaluate if liquid is at expected height (assumes tip is already attached)"""
@@ -516,7 +510,6 @@ def run(protocol: protocol_api.ProtocolContext):
 
     # Main optimization loop - test all wells individually
     current_params = reference_params.copy()
-    previous_params = reference_params.copy()
     best_score = float("inf")
     best_params = reference_params.copy()
     learning_rate = initial_learning_rate
@@ -527,10 +520,12 @@ def run(protocol: protocol_api.ProtocolContext):
 
     # Log initial setup
     protocol.comment("=" * 60)
-    protocol.comment("LIQUID CLASS OPTIMIZATION STARTED")
+    protocol.comment("PLUGGABLE OPTIMIZATION STRATEGY STARTED")
     protocol.comment("=" * 60)
     protocol.comment(f"Testing {SAMPLE_COUNT} wells with {PIPETTE_TYPE.value} pipette")
     protocol.comment(f"Liquid type: {LIQUID_TYPE.value}")
+    protocol.comment(f"Optimization strategy: {optimization_strategy.get_strategy_name()}")
+    protocol.comment(f"Strategy description: {optimization_strategy.get_strategy_description()}")
     protocol.comment(f"Reference parameters: {reference_params}")
     protocol.comment(f"Initial learning rate: {initial_learning_rate}")
     protocol.comment("=" * 60)
@@ -538,74 +533,22 @@ def run(protocol: protocol_api.ProtocolContext):
     for well_idx, well in enumerate(test_wells):
         protocol.comment(f"\n--- WELL {well_idx + 1}/{SAMPLE_COUNT}: {well} ---")
 
-        # Step 1.1: Generate parameter combination for this well
+        # Generate parameters using the optimization strategy
+        current_params = optimization_strategy.generate_parameters(
+            well_idx, well_data, learning_rate
+        )
+
+        # Log parameter generation
         if well_idx == 0:
-            # First well - use reference parameters
-            current_params = reference_params.copy()
             protocol.comment("Using reference liquid class parameters for first well")
         else:
-            # Use gradient descent to update parameters
-            if len(well_data) >= 2:  # Need at least 2 data points for gradient
-                last_result = well_data[-1]
-                second_last_result = well_data[-2]
-
-                protocol.comment(
-                    f"Previous scores: {second_last_result['bubblicity_score']:.3f} -> "
-                    f"{last_result['bubblicity_score']:.3f}"
-                )
-
-                # Calculate gradients based on last two results
-                gradients = calculate_gradient_direction(
-                    second_last_result["bubblicity_score"],
-                    last_result["bubblicity_score"],
-                    second_last_result["parameters"],
-                    last_result["parameters"],
-                )
-
-                protocol.comment(f"Calculated gradients: {gradients}")
-
-                # Update parameters using gradients
-                current_params = update_parameters_with_gradient(
-                    last_result["parameters"], gradients, learning_rate
-                )
-
-                protocol.comment(f"Learning rate: {learning_rate:.4f}")
-                protocol.comment("Parameter changes:")
-                for param in current_params:
-                    if param in last_result["parameters"]:
-                        change = current_params[param] - last_result["parameters"][param]
-                        protocol.comment(
-                            f"  {param}: {last_result['parameters'][param]:.2f} -> "
-                            f"{current_params[param]:.2f} (Δ{change:+.2f})"
-                        )
-            else:
-                # For second well, make small random adjustments to explore
-                current_params = previous_params.copy()
-                protocol.comment("Making initial parameter adjustments for exploration:")
-                for param in gradient_step.keys():
-                    if param in current_params:
-                        # Small random adjustment (±10% of step size)
-                        adjustment = (well_idx - 1) * gradient_step[param] * 0.1
-                        current_params[param] += adjustment
-                        protocol.comment(
-                            f"  {param}: {previous_params[param]:.2f} -> "
-                            f"{current_params[param]:.2f} (Δ{adjustment:+.2f})"
-                        )
-
-            # Apply constraints
-            constrained_params = apply_constraints(current_params)
-            if constrained_params != current_params:
-                protocol.comment("Parameters constrained to bounds:")
-                for param in current_params:
-                    if (
-                        param in constrained_params
-                        and current_params[param] != constrained_params[param]
-                    ):
-                        protocol.comment(
-                            f"  {param}: {current_params[param]:.2f} -> "
-                            f"{constrained_params[param]:.2f}"
-                        )
-            current_params = constrained_params
+            protocol.comment(
+                f"Generated parameters using {optimization_strategy.get_strategy_name()}"
+            )
+            # Check for phase information (hybrid strategy specific)
+            current_phase = getattr(optimization_strategy, "current_phase", None)
+            if current_phase:
+                protocol.comment(f"Current phase: {current_phase}")
 
         protocol.comment(f"Current parameters: {current_params}")
 
@@ -637,7 +580,7 @@ def run(protocol: protocol_api.ProtocolContext):
             # Drop the tip after both evaluations
             pipette_50.drop_tip()
 
-        # Step 1.5: Record well data
+        # Record well data
         well_result = {
             "well_id": str(well),
             "well_index": well_idx,
@@ -646,6 +589,11 @@ def run(protocol: protocol_api.ProtocolContext):
             "bubblicity_score": bubblicity_score,
         }
         well_data.append(well_result)
+
+        # Record result in optimization strategy
+        optimization_strategy.record_result(
+            well_idx, current_params, bubblicity_score, height_status, learning_rate
+        )
 
         # Track optimization progress
         if height_status and bubblicity_score < best_score:
@@ -690,12 +638,11 @@ def run(protocol: protocol_api.ProtocolContext):
             }
         )
 
-        # Update for next iteration
-        previous_params = current_params.copy()
+        # Update for next iteration (parameters handled by strategy)
 
     # Find optimal parameters
     protocol.comment("\n" + "=" * 60)
-    protocol.comment("OPTIMIZATION COMPLETE - FINAL ANALYSIS")
+    protocol.comment("PLUGGABLE OPTIMIZATION STRATEGY COMPLETE - FINAL ANALYSIS")
     protocol.comment("=" * 60)
 
     if well_data:
@@ -724,6 +671,22 @@ def run(protocol: protocol_api.ProtocolContext):
                     protocol.comment(
                         f"    {param}: {ref_val:.2f} → {opt_val:.2f} "
                         f"(Δ{change:+.2f}, {change_pct:+.1f}%)"
+                    )
+
+            # Strategy-specific analysis
+            protocol.comment("\n🔧 OPTIMIZATION STRATEGY ANALYSIS:")
+            protocol.comment(f"    Strategy used: {optimization_strategy.get_strategy_name()}")
+            protocol.comment(
+                f"    Strategy description: {optimization_strategy.get_strategy_description()}"
+            )
+
+            # Show strategy-specific statistics
+            if hasattr(optimization_strategy, "optimization_history"):
+                strategy_history = optimization_strategy.optimization_history
+                protocol.comment(f"    Strategy iterations: {len(strategy_history)}")
+                if strategy_history:
+                    protocol.comment(
+                        f"    Strategy best score: {optimization_strategy.best_score:.3f}"
                     )
 
             # Additional analysis
@@ -823,5 +786,5 @@ def run(protocol: protocol_api.ProtocolContext):
             protocol.comment("   This may indicate issues with liquid handling or evaluation")
 
     protocol.comment("\n" + "=" * 60)
-    protocol.comment("LIQUID CLASS CALIBRATION PROTOCOL COMPLETED")
+    protocol.comment("PLUGGABLE OPTIMIZATION STRATEGY PROTOCOL COMPLETED")
     protocol.comment("=" * 60)

@@ -48,6 +48,25 @@ def get_liquid_class_params_from_module(liquid_type, pipette_type="P1000"):
         return get_default_liquid_params(pipette_type, liquid_type)
 
 
+def get_optimization_strategy_factory():
+    """Dynamically import the optimization strategies module"""
+    try:
+        # Add protocols directory to path
+        protocols_dir = str(Path.cwd() / "protocols")
+        if protocols_dir not in sys.path:
+            sys.path.insert(0, protocols_dir)
+
+        from protocols.optimization_strategies import OptimizationStrategyFactory
+
+        return OptimizationStrategyFactory
+    except ImportError as e:
+        print(f"Warning: Could not import optimization_strategies module: {e}")
+        return None
+    except Exception as e:
+        print(f"Warning: Error importing optimization strategies: {e}")
+        return None
+
+
 def parse_custom_params(custom_params_str):
     """Parse custom liquid class parameters from command line string"""
     if not custom_params_str:
@@ -194,10 +213,12 @@ def create_modified_protocol(
     # Handle custom parameters if provided
     if custom_params:
         modified_content = _inject_custom_liquid_params(
-            modified_content, liquid_type, custom_params
+            modified_content, liquid_type, custom_params, export_temp
         )
     elif export_temp:
-        modified_content = _inject_hardcoded_liquid_params(modified_content, liquid_type)
+        modified_content = _inject_hardcoded_liquid_params(
+            modified_content, liquid_type, export_temp
+        )
 
     # Replace enum comparisons with string comparisons
     for liquid in [
@@ -223,7 +244,7 @@ def create_modified_protocol(
     return temp_file.name
 
 
-def _inject_custom_liquid_params(content, liquid_type, custom_params):
+def _inject_custom_liquid_params(content, liquid_type, custom_params, export_temp=False):
     """Inject custom liquid parameters into protocol content"""
     # Merge with defaults for any missing parameters
     default_params = get_liquid_class_params_from_module(liquid_type)
@@ -254,10 +275,10 @@ def get_default_liquid_class_params(pipette, liquid):
     return get_hardcoded_liquid_class_params()
 '''
 
-    return _inject_liquid_params_into_content(content, hardcoded_function, liquid_type)
+    return _inject_liquid_params_into_content(content, hardcoded_function, liquid_type, export_temp)
 
 
-def _inject_hardcoded_liquid_params(content, liquid_type):
+def _inject_hardcoded_liquid_params(content, liquid_type, export_temp=False):
     """Inject hardcoded liquid parameters into protocol content"""
     # Get the liquid class parameters by evaluating the module
     liquid_params = get_liquid_class_params_from_module(liquid_type)
@@ -287,10 +308,10 @@ def get_default_liquid_class_params(pipette, liquid):
     return get_hardcoded_liquid_class_params()
 '''
 
-    return _inject_liquid_params_into_content(content, hardcoded_function, liquid_type)
+    return _inject_liquid_params_into_content(content, hardcoded_function, liquid_type, export_temp)
 
 
-def _inject_liquid_params_into_content(content, hardcoded_function, liquid_type):
+def _inject_liquid_params_into_content(content, hardcoded_function, liquid_type, export_temp=False):
     """Common function to inject liquid parameters into protocol content"""
     # Remove the liquid class imports
     import_string = (
@@ -335,6 +356,25 @@ def _inject_liquid_params_into_content(content, hardcoded_function, liquid_type)
 
     # Replace the .to_dict() call since we're returning a dict directly
     content = content.replace("liquid_class_params.to_dict()", "liquid_class_params")
+
+    # Handle optimization strategies import for temporary files
+    if not export_temp:
+        # For temporary files, we need to handle the optimization strategies import
+        # Use the same pattern as liquids - add current directory to sys.path
+        dynamic_import = (
+            "import sys\n"
+            "import os\n"
+            "from pathlib import Path\n"
+            "# Add the project root (where protocols/ is located) to sys.path\n"
+            "project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\n"
+            "if project_root not in sys.path:\n"
+            "    sys.path.insert(0, project_root)\n"
+            "from protocols.optimization_strategies import OptimizationStrategyFactory, OptimizationStrategy"
+        )
+        content = content.replace(
+            "from optimization_strategies import OptimizationStrategyFactory, OptimizationStrategy",
+            dynamic_import,
+        )
 
     # Replace the original get_default_liquid_class_params function
     # Find the start and end of the original function
@@ -511,10 +551,12 @@ def create_modified_8channel_protocol(
     # Handle custom parameters if provided
     if custom_params:
         modified_content = _inject_custom_liquid_params(
-            modified_content, liquid_type, custom_params
+            modified_content, liquid_type, custom_params, export_temp
         )
     elif export_temp:
-        modified_content = _inject_hardcoded_liquid_params(modified_content, liquid_type)
+        modified_content = _inject_hardcoded_liquid_params(
+            modified_content, liquid_type, export_temp
+        )
 
     # Replace enum comparisons with string comparisons
     for liquid in [

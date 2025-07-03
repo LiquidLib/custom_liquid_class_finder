@@ -6,10 +6,10 @@ Test script to demonstrate improved parameter bounds for different pipette and l
 import sys
 import os
 
-# Add the protocols directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "protocols"))  # noqa: E402
+# Add the project root to the path so we can import from protocols
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from optimization_strategies import OptimizationStrategy  # noqa: E402
+from protocols.optimization_strategies import OptimizationStrategy  # noqa: E402
 
 
 def test_parameter_bounds():
