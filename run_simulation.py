@@ -150,6 +150,7 @@ def create_modified_protocol(
     export_temp=False,
     use_real_detection=False,
     custom_params=None,
+    optimization_strategy="simultaneous",
 ):
     """Create a modified protocol file with the specified parameters"""
 
@@ -172,8 +173,10 @@ def create_modified_protocol(
         temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
 
     # Replace the default values in the protocol
-    modified_content = content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"').replace(
-        "default=96", f"default={sample_count}"
+    modified_content = (
+        content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"')
+        .replace("default=96", f"default={sample_count}")
+        .replace('default="simultaneous"', f'default="{optimization_strategy}"')
     )
 
     # Set the detection flag based on use_real_detection parameter
@@ -400,6 +403,7 @@ def run_simulation(
     verbose=False,
     quiet=False,
     custom_params=None,
+    optimization_strategy="simultaneous",
 ):
     """Run the simulation with specified parameters"""
 
@@ -407,6 +411,7 @@ def run_simulation(
         print("Running simulation with:")
         print(f"  Liquid Type: {liquid_type}")
         print(f"  Sample Count: {sample_count}")
+        print(f"  Optimization Strategy: {optimization_strategy}")
         print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
         if verbose:
             print(f"  Verbose Mode: Enabled")
@@ -417,7 +422,12 @@ def run_simulation(
 
     # Create modified protocol
     temp_protocol = create_modified_protocol(
-        liquid_type, sample_count, export_temp, use_real_detection, custom_params
+        liquid_type,
+        sample_count,
+        export_temp,
+        use_real_detection,
+        custom_params,
+        optimization_strategy,
     )
     if not temp_protocol:
         return False
@@ -466,6 +476,7 @@ def create_modified_8channel_protocol(
     export_temp=False,
     use_real_detection=False,
     custom_params=None,
+    optimization_strategy="simultaneous",
 ):
     """Create a modified 8channel protocol file with the specified parameters"""
     protocol_path = Path("protocols/eight_channel.py")
@@ -479,8 +490,10 @@ def create_modified_8channel_protocol(
         temp_file = open(output_filename, "w")
     else:
         temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
-    modified_content = content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"').replace(
-        "default=96", f"default={sample_count}"
+    modified_content = (
+        content.replace('default="GLYCEROL_99"', f'default="{liquid_type}"')
+        .replace("default=96", f"default={sample_count}")
+        .replace('default="simultaneous"', f'default="{optimization_strategy}"')
     )
 
     # Set the detection flag based on use_real_detection parameter
@@ -533,12 +546,14 @@ def run_simulation_8channel(
     verbose=False,
     quiet=False,
     custom_params=None,
+    optimization_strategy="simultaneous",
 ):
     """Run the 8channel simulation with specified parameters"""
     if not quiet:
         print("Running 8-channel simulation with:")
         print(f"  Liquid Type: {liquid_type}")
         print(f"  Sample Count: {sample_count}")
+        print(f"  Optimization Strategy: {optimization_strategy}")
         print(f"  Detection Mode: {'Real' if export_temp else 'Simulated'}")
         if verbose:
             print(f"  Verbose Mode: Enabled")
@@ -548,7 +563,12 @@ def run_simulation_8channel(
     use_real_detection = export_temp
 
     temp_protocol = create_modified_8channel_protocol(
-        liquid_type, sample_count, export_temp, use_real_detection, custom_params
+        liquid_type,
+        sample_count,
+        export_temp,
+        use_real_detection,
+        custom_params,
+        optimization_strategy,
     )
     if not temp_protocol:
         return False
@@ -693,6 +713,14 @@ For more information, visit: https://github.com/LiquidLib/custom_liquid_class_fi
         "dispense_rate, dispense_delay, blowout_rate, touch_tip",
     )
 
+    # Optimization strategy
+    parser.add_argument(
+        "--optimization-strategy",
+        choices=["simultaneous", "hybrid", "coordinate"],
+        default="simultaneous",
+        help="Optimization strategy to use (default: simultaneous)",
+    )
+
     # Information options
     parser.add_argument("--version", action="version", version="custom-liquid-class-finder 0.1.0")
 
@@ -767,11 +795,23 @@ For more information, visit: https://github.com/LiquidLib/custom_liquid_class_fi
 
     if mode_8channel:
         success = run_simulation_8channel(
-            liquid_type, sample_count, export_temp, verbose, quiet, custom_params
+            liquid_type,
+            sample_count,
+            export_temp,
+            verbose,
+            quiet,
+            custom_params,
+            args.optimization_strategy,
         )
     else:
         success = run_simulation(
-            liquid_type, sample_count, export_temp, verbose, quiet, custom_params
+            liquid_type,
+            sample_count,
+            export_temp,
+            verbose,
+            quiet,
+            custom_params,
+            args.optimization_strategy,
         )
 
     return 0 if success else 1
